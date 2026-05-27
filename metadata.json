@@ -1,0 +1,6 @@
+{
+  "name": "QianPulsa API Simulator",
+  "description": "Alat simulasi pengujian API QianPulsa dengan manajemen parameter persisten per role (Admin, Seller) dan log respon per kode status HTTP.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
