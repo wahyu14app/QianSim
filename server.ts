@@ -24,9 +24,10 @@ async function startServer() {
     }
   });
 
-  // API Route for proxying real API requests (simulasi nyata)
+  // API Route for proxying real API requests
   app.post("/api/proxy-request", async (req, res) => {
     const { url, method, headers, body } = req.body;
+
     if (!url) {
       return res.status(400).json({ error: "Target URL required" });
     }
@@ -85,13 +86,15 @@ async function startServer() {
         responseHeaders[key] = val;
       });
 
-      res.json({
+      const responsePayload = {
         status: response.status,
         statusText: response.statusText,
         durationMs: duration,
         headers: responseHeaders,
         body: parsedBody,
-      });
+      };
+
+      res.json(responsePayload);
     } catch (err: any) {
       const duration = Date.now() - startTime;
       console.error("Proxy request error:", err);

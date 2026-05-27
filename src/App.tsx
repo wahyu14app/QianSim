@@ -1,10 +1,30 @@
 import React, { useState, useEffect } from "react";
-import { 
-  Play, Shield, Terminal, RefreshCw, AlertCircle, Sparkles, Key, HelpCircle,
-  Database, CheckCircle, Upload, Eye, FileText, Smartphone, HardDrive,
-  Menu, X, Activity
+import {
+  Play,
+  Shield,
+  Terminal,
+  RefreshCw,
+  AlertCircle,
+  Sparkles,
+  Key,
+  HelpCircle,
+  Database,
+  CheckCircle,
+  Upload,
+  Eye,
+  FileText,
+  Smartphone,
+  HardDrive,
+  Menu,
+  X,
+  Activity,
 } from "lucide-react";
-import { ApiEndpoint, RoleConfig, ResponseLog, ResponseCodeLogs } from "./types";
+import {
+  ApiEndpoint,
+  RoleConfig,
+  ResponseLog,
+  ResponseCodeLogs,
+} from "./types";
 import { getRoleFromPath, parseOpenApi } from "./utils";
 import RoleConfigurationManager from "./components/RoleConfigurationManager";
 import EndpointList from "./components/EndpointList";
@@ -28,34 +48,42 @@ const FALLBACK_SPEC = {
                 properties: {
                   email: { type: "string", format: "email" },
                   password: { type: "string", minLength: 1 },
-                  otpCode: { type: "string" }
+                  otpCode: { type: "string" },
                 },
-                required: ["email", "password"]
-              }
-            }
-          }
+                required: ["email", "password"],
+              },
+            },
+          },
         },
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/admin/auth/me": {
       get: {
         summary: "Dapatkan Profil Admin",
         tags: ["Admin Auth"],
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/admin/catalog/products": {
       get: {
         summary: "Dapatkan Produk Katalog",
         tags: ["Admin Catalog"],
         parameters: [
-          { name: "skip", in: "query", schema: { type: "string", default: "0" } },
-          { name: "take", in: "query", schema: { type: "string", default: "50" } }
+          {
+            name: "skip",
+            in: "query",
+            schema: { type: "string", default: "0" },
+          },
+          {
+            name: "take",
+            in: "query",
+            schema: { type: "string", default: "50" },
+          },
         ],
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
+        responses: { "200": { description: "Default Response" } },
       },
       post: {
         summary: "Buat Produk Baru",
@@ -72,16 +100,22 @@ const FALLBACK_SPEC = {
                   productCode: { type: "string", minLength: 1 },
                   name: { type: "string", minLength: 1 },
                   basePrice: { type: "number", minimum: 0 },
-                  isAvailable: { type: "boolean" }
+                  isAvailable: { type: "boolean" },
                 },
-                required: ["brandId", "categoryId", "productCode", "name", "basePrice"]
-              }
-            }
-          }
+                required: [
+                  "brandId",
+                  "categoryId",
+                  "productCode",
+                  "name",
+                  "basePrice",
+                ],
+              },
+            },
+          },
         },
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/seller/auth/login": {
       post: {
@@ -96,22 +130,22 @@ const FALLBACK_SPEC = {
                 properties: {
                   email: { type: "string", format: "email" },
                   password: { type: "string", minLength: 1 },
-                  otpCode: { type: "string" }
+                  otpCode: { type: "string" },
                 },
-                required: ["email", "password"]
-              }
-            }
-          }
+                required: ["email", "password"],
+              },
+            },
+          },
         },
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/seller/stores": {
       get: {
         summary: "Get My Stores",
         tags: ["Seller Stores"],
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
+        responses: { "200": { description: "Default Response" } },
       },
       post: {
         summary: "Create Store",
@@ -125,16 +159,16 @@ const FALLBACK_SPEC = {
                 properties: {
                   name: { type: "string", minLength: 3 },
                   slug: { type: "string", minLength: 3 },
-                  domain: { type: "string" }
+                  domain: { type: "string" },
                 },
-                required: ["name", "slug"]
-              }
-            }
-          }
+                required: ["name", "slug"],
+              },
+            },
+          },
         },
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/seller/billing/deposit": {
       post: {
@@ -147,36 +181,44 @@ const FALLBACK_SPEC = {
               schema: {
                 type: "object",
                 properties: {
-                  amount: { type: "number", minimum: 10000 }
+                  amount: { type: "number", minimum: 10000 },
                 },
-                required: ["amount"]
-              }
-            }
-          }
+                required: ["amount"],
+              },
+            },
+          },
         },
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/store/profile": {
       get: {
         summary: "Cek Profil Toko & Saldo",
         tags: ["Store Profile"],
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/store/catalog": {
       get: {
         summary: "Ambil Katalog Produk Toko",
         tags: ["Store Catalog"],
         parameters: [
-          { name: "skip", in: "query", schema: { type: "string", default: "0" } },
-          { name: "take", in: "query", schema: { type: "string", default: "20" } }
+          {
+            name: "skip",
+            in: "query",
+            schema: { type: "string", default: "0" },
+          },
+          {
+            name: "take",
+            in: "query",
+            schema: { type: "string", default: "20" },
+          },
         ],
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/store/transactions/checkout": {
       post: {
@@ -191,29 +233,35 @@ const FALLBACK_SPEC = {
                 properties: {
                   productCode: { type: "string", minLength: 1 },
                   targetNumber: { type: "string", minLength: 10 },
-                  externalId: { type: "string", minLength: 1 }
+                  externalId: { type: "string", minLength: 1 },
                 },
-                required: ["productCode", "targetNumber", "externalId"]
-              }
-            }
-          }
+                required: ["productCode", "targetNumber", "externalId"],
+              },
+            },
+          },
         },
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
+        responses: { "200": { description: "Default Response" } },
+      },
     },
     "/api/v1/store/transactions/{id}": {
       get: {
         summary: "Detail Transaksi Outlet",
         tags: ["Store Transactions"],
         parameters: [
-          { name: "id", in: "path", required: true, schema: { type: "string" }, description: "ID transaksi unik" }
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            schema: { type: "string" },
+            description: "ID transaksi unik",
+          },
         ],
         security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } }
-      }
-    }
-  }
+        responses: { "200": { description: "Default Response" } },
+      },
+    },
+  },
 };
 
 const DEFAULT_JWT_ADMIN = "Bearer admin-dummy-token";
@@ -221,7 +269,9 @@ const DEFAULT_JWT_SELLER = "Bearer seller-dummy-token";
 
 export default function App() {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
-  const [selectedEndpoint, setSelectedEndpoint] = useState<ApiEndpoint | null>(null);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<ApiEndpoint | null>(
+    null,
+  );
   const [isLoadingSpec, setIsLoadingSpec] = useState(true);
   const [isUsingFallback, setIsUsingFallback] = useState(false);
   const [specError, setSpecError] = useState<string | null>(null);
@@ -230,7 +280,9 @@ export default function App() {
   const [activeRoleFilter, setActiveRoleFilter] = useState<string>("all");
 
   // Active Role Configuration Profile loaded from LocalStorage or Default
-  const [roleConfigs, setRoleConfigs] = useState<Record<string, RoleConfig>>({});
+  const [roleConfigs, setRoleConfigs] = useState<Record<string, RoleConfig>>(
+    {},
+  );
 
   // Captured HTTP response snapshot logs stored as: [endpointKey]: { [statusCode]: ResponseLog }
   const [responseHistory, setResponseHistory] = useState<ResponseCodeLogs>({});
@@ -242,8 +294,12 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Tabbed layout state for workspace right panel: sandbox (forms + history), config (credentials manager), runner (mass serial test)
-  const [workspaceTab, setWorkspaceTab] = useState<"sandbox" | "config" | "runner">("sandbox");
-  const [configTabRole, setConfigTabRole] = useState<"admin" | "seller" | "store">("admin");
+  const [workspaceTab, setWorkspaceTab] = useState<
+    "sandbox" | "config" | "runner" | "metrics"
+  >("metrics");
+  const [configTabRole, setConfigTabRole] = useState<
+    "admin" | "seller" | "store"
+  >("admin");
 
   // Config setup & history load on mount
   useEffect(() => {
@@ -290,9 +346,23 @@ export default function App() {
       role,
       baseUrl: "https://qianpulsa-coreapi-v1.onrender.com",
       headers: {
-        Authorization: role === "admin" ? DEFAULT_JWT_ADMIN : role === "seller" ? DEFAULT_JWT_SELLER : role === "store" ? "Bearer store-dummy-token" : "",
+        Authorization:
+          role === "admin"
+            ? DEFAULT_JWT_ADMIN
+            : role === "seller"
+              ? DEFAULT_JWT_SELLER
+              : role === "store"
+                ? "Bearer store-dummy-token"
+                : "",
         "x-app-client-key": "",
-        "x-app-origin": role === "admin" ? "admin" : role === "seller" ? "seller" : role === "store" ? "store" : "other",
+        "x-app-origin":
+          role === "admin"
+            ? "admin"
+            : role === "seller"
+              ? "seller"
+              : role === "store"
+                ? "store"
+                : "other",
       },
       savedValues: {},
     };
@@ -302,11 +372,26 @@ export default function App() {
     setIsLoadingSpec(true);
     setSpecError(null);
     try {
-      const resp = await fetch("/api/proxy-spec");
-      if (!resp.ok) {
-        throw new Error(`Proxy error: ${resp.statusText}`);
+      let data;
+      try {
+        // Try direct remote fetch first (great for WebViews and standard CORS-enabled clients)
+        const directResp = await fetch(
+          "https://qianpulsa-coreapi-v1.onrender.com/docs/json",
+        );
+        if (!directResp.ok) throw new Error("Status " + directResp.status);
+        data = await directResp.json();
+      } catch (directErr) {
+        console.warn(
+          "Direct remote spec fetch failed, trying local proxy `/api/proxy-spec`...",
+          directErr,
+        );
+        const resp = await fetch("/api/proxy-spec");
+        if (!resp.ok) {
+          throw new Error(`Proxy error: ${resp.statusText}`);
+        }
+        data = await resp.json();
       }
-      const data = await resp.json();
+
       const parsedEp = parseOpenApi(data);
       if (parsedEp.length === 0) {
         throw new Error("Parsed zero endpoints from JSON.");
@@ -318,7 +403,10 @@ export default function App() {
         setSelectedEndpoint(parsedEp[0]);
       }
     } catch (err: any) {
-      console.warn("Failed to fetch server spec, activating offline fallback...", err);
+      console.warn(
+        "Failed to fetch server spec, activating offline fallback...",
+        err,
+      );
       const parsedEp = parseOpenApi(FALLBACK_SPEC);
       setEndpoints(parsedEp);
       setIsUsingFallback(true);
@@ -334,11 +422,18 @@ export default function App() {
   const handleRoleConfigChange = (updated: RoleConfig) => {
     const nextConfigs = { ...roleConfigs, [updated.role]: updated };
     setRoleConfigs(nextConfigs);
-    localStorage.setItem(`qian_role_config_v2_${updated.role}`, JSON.stringify(updated));
+    localStorage.setItem(
+      `qian_role_config_v2_${updated.role}`,
+      JSON.stringify(updated),
+    );
   };
 
   const handleResetRoleConfig = (role: string) => {
-    if (window.confirm(`Apakah Anda yakin ingin menyetel ulang konfigurasi untuk role ${role}?`)) {
+    if (
+      window.confirm(
+        `Apakah Anda yakin ingin menyetel ulang konfigurasi untuk role ${role}?`,
+      )
+    ) {
       const fresh = createDefaultRoleConfig(role);
       handleRoleConfigChange(fresh);
     }
@@ -348,7 +443,8 @@ export default function App() {
     ? getRoleFromPath(selectedEndpoint.path)
     : "other";
 
-  const currentConfig = roleConfigs[currentRoleForSelected] || createDefaultRoleConfig("other");
+  const currentConfig =
+    roleConfigs[currentRoleForSelected] || createDefaultRoleConfig("other");
 
   // Sync role filter change with tab selection helper
   const handleRoleFilterChange = (role: string) => {
@@ -372,11 +468,12 @@ export default function App() {
       let responsePayload;
 
       // Check if we are running in a static web view, github pages, or fallback mode
-      const isStaticOrWebView = isUsingFallback || 
-                                window.location.protocol === "file:" || 
-                                window.location.hostname.includes("github.io") || 
-                                window.location.hostname.includes("vercel.app") ||
-                                window.location.hostname.includes("github");
+      const isStaticOrWebView =
+        isUsingFallback ||
+        window.location.protocol === "file:" ||
+        window.location.hostname.includes("github.io") ||
+        window.location.hostname.includes("vercel.app") ||
+        window.location.hostname.includes("github");
 
       if (isStaticOrWebView) {
         // Direct browser/webview client-side fetch (perfect for Android WebView where CORS is bypassed or API allows CORS)
@@ -385,9 +482,17 @@ export default function App() {
           method: reqData.method,
           headers: reqData.headers,
         };
-        
-        if (reqData.body && ["POST", "PUT", "PATCH", "DELETE"].includes(reqData.method.toUpperCase())) {
-          fetchOptions.body = typeof reqData.body === "string" ? reqData.body : JSON.stringify(reqData.body);
+
+        if (
+          reqData.body &&
+          ["POST", "PUT", "PATCH", "DELETE"].includes(
+            reqData.method.toUpperCase(),
+          )
+        ) {
+          fetchOptions.body =
+            typeof reqData.body === "string"
+              ? reqData.body
+              : JSON.stringify(reqData.body);
         }
 
         try {
@@ -422,7 +527,10 @@ export default function App() {
           };
         } catch (fetchErr: any) {
           // If direct call fails (e.g. CORS block on local browser tests), try to delegate to server api proxy as fallback just in case
-          console.warn("Direct fetch failed, trying express proxy fallback...", fetchErr);
+          console.warn(
+            "Direct fetch failed, trying express proxy fallback...",
+            fetchErr,
+          );
           const resp = await fetch("/api/proxy-request", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -452,7 +560,7 @@ export default function App() {
 
         responsePayload = await resp.json();
       }
-      
+
       // Construct Response Log Object
       const logRecord: ResponseLog = {
         endpointKey,
@@ -478,7 +586,52 @@ export default function App() {
       nextHistory[endpointKey][responsePayload.status] = logRecord;
 
       setResponseHistory(nextHistory);
-      localStorage.setItem("qian_response_history", JSON.stringify(nextHistory));
+      localStorage.setItem(
+        "qian_response_history",
+        JSON.stringify(nextHistory),
+      );
+
+      // Auto-extract token and save to credentials if requested
+      if (
+        responsePayload.status >= 200 &&
+        responsePayload.status < 300 &&
+        responsePayload.body
+      ) {
+        // simple recursive token finder
+        const extractToken = (obj: any): string | null => {
+          if (!obj || typeof obj !== "object") return null;
+          if (typeof obj.token === "string") return obj.token;
+          if (typeof obj.accessToken === "string") return obj.accessToken;
+          if (obj.data && typeof obj.data === "object") {
+            if (typeof obj.data.token === "string") return obj.data.token;
+            if (typeof obj.data.accessToken === "string")
+              return obj.data.accessToken;
+          }
+          return null;
+        };
+        const tokenFound = extractToken(responsePayload.body);
+        if (tokenFound) {
+          const activeRole = selectedEndpoint
+            ? getRoleFromPath(selectedEndpoint.path)
+            : "other";
+          if (activeRole !== "other") {
+            const currentRoleCfg =
+              roleConfigs[activeRole] || createDefaultRoleConfig(activeRole);
+            const updatedCfg = {
+              ...currentRoleCfg,
+              headers: {
+                ...currentRoleCfg.headers,
+                Authorization: `Bearer ${tokenFound}`,
+              },
+            };
+            setRoleConfigs((prev) => ({ ...prev, [activeRole]: updatedCfg }));
+            localStorage.setItem(
+              `qian_role_config_v2_${activeRole}`,
+              JSON.stringify(updatedCfg),
+            );
+          }
+        }
+      }
     } catch (err: any) {
       console.error("Fetch executor failed in application", err);
       // Handle fallback error mapping
@@ -507,7 +660,10 @@ export default function App() {
       }
       nextHistory[endpointKey][600] = errorRecord;
       setResponseHistory(nextHistory);
-      localStorage.setItem("qian_response_history", JSON.stringify(nextHistory));
+      localStorage.setItem(
+        "qian_response_history",
+        JSON.stringify(nextHistory),
+      );
     } finally {
       setIsExecutingRequest(false);
     }
@@ -516,16 +672,24 @@ export default function App() {
   const handleClearLogsForEndpoint = () => {
     if (!selectedEndpoint) return;
     const endpointKey = `${selectedEndpoint.method}:${selectedEndpoint.path}`;
-    if (window.confirm("Apakah Anda yakin ingin menghapus arsip respon untuk endpoint ini?")) {
+    if (
+      window.confirm(
+        "Apakah Anda yakin ingin menghapus arsip respon untuk endpoint ini?",
+      )
+    ) {
       const nextHistory = { ...responseHistory };
       delete nextHistory[endpointKey];
       setResponseHistory(nextHistory);
-      localStorage.setItem("qian_response_history", JSON.stringify(nextHistory));
+      localStorage.setItem(
+        "qian_response_history",
+        JSON.stringify(nextHistory),
+      );
     }
   };
 
   const activeLogsForSelected = selectedEndpoint
-    ? responseHistory[`${selectedEndpoint.method}:${selectedEndpoint.path}`] || {}
+    ? responseHistory[`${selectedEndpoint.method}:${selectedEndpoint.path}`] ||
+      {}
     : {};
 
   return (
@@ -585,7 +749,9 @@ export default function App() {
               className="p-2 bg-brand-sidebar hover:bg-brand-header border border-slate-800 rounded-lg text-slate-300 transition shrink-0 cursor-pointer disabled:opacity-50"
               title="Muat Ulang Swagger Spec"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSpec ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isLoadingSpec ? "animate-spin" : ""}`}
+              />
             </button>
           </div>
         </div>
@@ -599,24 +765,27 @@ export default function App() {
               <div className="w-12 h-12 rounded-full border border-indigo-500/20 animate-ping absolute -inset-0.5"></div>
               <div className="w-12 h-12 rounded-full border-t-2 border-indigo-500 animate-spin"></div>
             </div>
-            <h3 className="text-sm font-semibold text-slate-300">Menghubungkan ke Core API Dokumentasi...</h3>
+            <h3 className="text-sm font-semibold text-slate-300">
+              Menghubungkan ke Core API Dokumentasi...
+            </h3>
             <p className="text-xs text-slate-500 mt-1.5 max-w-xs text-center leading-relaxed">
-              Sedang mengambil struktur API dan parameter dari render online. Ini mungkin memerlukan beberapa detik bila instance render sedang tertidur.
+              Sedang mengambil struktur API dan parameter dari render online.
+              Ini mungkin memerlukan beberapa detik bila instance render sedang
+              tertidur.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start relative">
-            
             {/* Left Column: Responsive Sticky Drawer Navigation */}
             {isSidebarOpen && (
-              <div 
+              <div
                 id="sidebar-backdrop"
                 className="lg:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 transition-opacity duration-300"
                 onClick={() => setIsSidebarOpen(false)}
               />
             )}
 
-            <div 
+            <div
               id="sidebar-panel"
               className={`
                 fixed lg:sticky inset-y-0 lg:inset-auto left-0 lg:left-auto lg:top-[100px] lg:h-[calc(100vh-140px)]
@@ -631,7 +800,9 @@ export default function App() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-800 lg:hidden shrink-0">
                 <div className="flex items-center gap-2">
                   <Terminal className="w-4 h-4 text-indigo-400" />
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">Navigasi Simulator</span>
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Navigasi Simulator
+                  </span>
                 </div>
                 <button
                   id="btn-close-sidebar"
@@ -642,31 +813,12 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Metrik Sistem Segment */}
-              <div className="bg-brand-sidebar/90 border border-slate-800 rounded-xl p-4 shadow-xl shrink-0">
-                <div className="flex gap-2 items-center mb-1 text-xs">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                  <span className="text-slate-400 font-semibold uppercase tracking-wider">Metrik Sistem</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div className="bg-brand-bg p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-[10px] text-slate-500 block">Total Rute API</span>
-                    <span className="text-lg font-bold text-slate-200">{endpoints.length}</span>
-                  </div>
-                  <div className="bg-brand-bg p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-[10px] text-slate-500 block">Respon Direkam</span>
-                    <span className="text-lg font-bold text-emerald-400">
-                      {Object.values(responseHistory).reduce((acc: number, codesObj) => acc + Object.keys(codesObj).length, 0)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               {/* Live Detected List */}
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 bg-brand-sidebar border border-slate-800 rounded-xl overflow-hidden shadow-xl h-full flex flex-col">
                 <EndpointList
                   endpoints={endpoints}
                   selectedEndpoint={selectedEndpoint}
+                  responseHistory={responseHistory}
                   onSelectEndpoint={(ep) => {
                     setSelectedEndpoint(ep);
                     setWorkspaceTab("sandbox"); // Auto-switch to sandbox on endpoint activation
@@ -680,50 +832,228 @@ export default function App() {
 
             {/* Right Column: Interaction Sandbox Forms & Responses Log History */}
             <div className="lg:col-span-9 flex flex-col gap-6">
-              
               {/* Clean Minimalist Tab Bar */}
-              <div className="grid grid-cols-3 bg-brand-sidebar border border-slate-900 p-1 rounded-xl select-none shrink-0 font-sans shadow-sm">
+              <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none bg-brand-sidebar border border-slate-900 p-1 rounded-xl select-none shrink-0 font-sans shadow-sm gap-1">
                 <button
-                  id="tab-view-sandbox"
-                  onClick={() => setWorkspaceTab("sandbox")}
-                  className={`py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                    workspaceTab === "sandbox"
+                  id="tab-view-metrics"
+                  onClick={() => setWorkspaceTab("metrics")}
+                  className={`py-2.5 px-4 rounded-lg text-xs font-bold transition flex flex-1 items-center justify-center gap-2 cursor-pointer ${
+                    workspaceTab === "metrics"
                       ? "bg-indigo-600 text-white shadow"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  <Play className={`w-3.5 h-3.5 ${workspaceTab === "sandbox" ? "fill-current" : ""}`} />
-                  <span className="truncate">Simulator Kirim</span>
+                  <Activity className="w-3.5 h-3.5" />
+                  <span>Metrik Sistem</span>
                 </button>
-                
+
                 <button
                   id="tab-view-config"
                   onClick={() => setWorkspaceTab("config")}
-                  className={`py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`py-2.5 px-4 rounded-lg text-xs font-bold transition flex flex-1 items-center justify-center gap-2 cursor-pointer ${
                     workspaceTab === "config"
                       ? "bg-indigo-600 text-white shadow"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
                   <Key className="w-3.5 h-3.5" />
-                  <span className="truncate">Token & Credentials</span>
+                  <span>Token & Credentials</span>
                 </button>
-                
+
+                <button
+                  id="tab-view-sandbox"
+                  onClick={() => setWorkspaceTab("sandbox")}
+                  className={`py-2.5 px-4 rounded-lg text-xs font-bold transition flex flex-1 items-center justify-center gap-2 cursor-pointer ${
+                    workspaceTab === "sandbox"
+                      ? "bg-indigo-600 text-white shadow"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Play
+                    className={`w-3.5 h-3.5 ${workspaceTab === "sandbox" ? "fill-current" : ""}`}
+                  />
+                  <span>Simulator Kirim</span>
+                </button>
+
                 <button
                   id="tab-view-runner"
                   onClick={() => setWorkspaceTab("runner")}
-                  className={`py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  className={`py-2.5 px-4 rounded-lg text-xs font-bold transition flex flex-1 items-center justify-center gap-2 cursor-pointer ${
                     workspaceTab === "runner"
                       ? "bg-indigo-600 text-white shadow"
                       : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span className="truncate">Auto-Runner Board</span>
+                  <Terminal className="w-3.5 h-3.5" />
+                  <span>Auto-Runner Board</span>
                 </button>
               </div>
 
               {/* Tab views conditional components */}
+              {workspaceTab === "metrics" && (
+                <div className="space-y-6">
+                  {/* Metrik Sistem Segment */}
+                  <div className="bg-brand-sidebar border border-slate-800 rounded-xl p-6 shadow-xl">
+                    <div className="flex gap-2 items-center mb-4 text-sm">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                      <span className="text-slate-200 font-semibold uppercase tracking-wider">
+                        Metrik Sistem & Penyimpanan
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                      <div className="bg-brand-bg p-4 rounded-lg border border-slate-800">
+                        <span className="text-xs text-slate-500 block mb-1">
+                          Total Rute API
+                        </span>
+                        <span className="text-2xl font-bold text-slate-200">
+                          {endpoints.length}
+                        </span>
+                      </div>
+                      <div className="bg-brand-bg p-4 rounded-lg border border-slate-800">
+                        <span className="text-xs text-slate-500 block mb-1">
+                          Total Response Direkam
+                        </span>
+                        <span className="text-2xl font-bold text-emerald-400">
+                          {Object.values(responseHistory).reduce(
+                            (acc: number, codesObj) =>
+                              acc + Object.keys(codesObj).length,
+                            0,
+                          )}
+                        </span>
+                      </div>
+                      <div className="bg-brand-bg p-4 rounded-lg border border-slate-800">
+                        <span className="text-xs text-slate-500 block mb-1">
+                          Total Endpoint Teruji
+                        </span>
+                        <span className="text-2xl font-bold text-indigo-400">
+                          {Object.keys(responseHistory).length}
+                        </span>
+                      </div>
+                      <div className="bg-brand-bg p-4 rounded-lg border border-slate-800">
+                        <span className="text-xs text-slate-500 block mb-1">
+                          Sisa Target
+                        </span>
+                        <span className="text-2xl font-bold text-amber-500">
+                          {endpoints.length -
+                            Object.keys(responseHistory).length}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-8 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-lg flex flex-col sm:flex-row gap-4 items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-semibold text-indigo-300 mb-2">
+                          Export & Import Data Cadangan
+                        </h4>
+                        <p className="text-xs text-slate-400 max-w-2xl">
+                          Aplikasi saat ini menyimpan semua progres Anda
+                          (konfigurasi role, history response code, parameter
+                          input) ke dalam Local Storage browser Anda. Untuk
+                          mencadangkannya secara permanen agar tidak hilang
+                          ketika local storage terhapus, Anda dapat meng-export
+                          data ke dalam file JSON secara mandiri.
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                        <label className="bg-brand-sidebar hover:bg-slate-800 text-slate-300 border border-slate-700 hover:text-white text-xs font-semibold py-2 px-4 rounded transition cursor-pointer text-center">
+                          Import JSON
+                          <input
+                            type="file"
+                            accept=".json"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                try {
+                                  const backup = JSON.parse(
+                                    event.target?.result as string,
+                                  );
+                                  if (backup.roleConfigs) {
+                                    Object.keys(backup.roleConfigs).forEach(
+                                      (role) => {
+                                        localStorage.setItem(
+                                          `qian_role_config_v2_${role}`,
+                                          JSON.stringify(
+                                            backup.roleConfigs[role],
+                                          ),
+                                        );
+                                      },
+                                    );
+                                    setRoleConfigs(backup.roleConfigs);
+                                  }
+                                  if (backup.responseHistory) {
+                                    localStorage.setItem(
+                                      "qian_response_history",
+                                      JSON.stringify(backup.responseHistory),
+                                    );
+                                    setResponseHistory(backup.responseHistory);
+                                  }
+                                  if (backup.inputsStore) {
+                                    Object.keys(backup.inputsStore).forEach(
+                                      (key) => {
+                                        localStorage.setItem(
+                                          key,
+                                          JSON.stringify(
+                                            backup.inputsStore[key],
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }
+                                  alert(
+                                    "Data berhasil di-import! Halaman tidak perlu dimuat ulang.",
+                                  );
+                                } catch (err) {
+                                  alert("Format file tidak valid.");
+                                }
+                              };
+                              reader.readAsText(file);
+                            }}
+                          />
+                        </label>
+                        <button
+                          onClick={() => {
+                            const inputsStore: Record<string, any> = {};
+                            for (let i = 0; i < localStorage.length; i++) {
+                              const key = localStorage.key(i);
+                              if (key && key.startsWith("qian_saved_inputs_")) {
+                                try {
+                                  inputsStore[key] = JSON.parse(
+                                    localStorage.getItem(key) || "{}",
+                                  );
+                                } catch (e) {}
+                              }
+                            }
+                            const backup = {
+                              roleConfigs,
+                              responseHistory,
+                              activeRoleFilter,
+                              inputsStore,
+                            };
+                            const blob = new Blob(
+                              [JSON.stringify(backup, null, 2)],
+                              { type: "application/json" },
+                            );
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `qian_simulator_backup_${new Date().toISOString().slice(0, 10)}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-4 rounded transition"
+                        >
+                          Export JSON
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {workspaceTab === "sandbox" && (
                 <div className="space-y-6">
                   {selectedEndpoint ? (
@@ -735,11 +1065,24 @@ export default function App() {
                         </div>
                         <div>
                           <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest">
-                            Konfigurasi Aktif: Role "{currentRoleForSelected === "admin" ? "Admin" : currentRoleForSelected === "seller" ? "Seller" : currentRoleForSelected === "store" ? "Store" : "Store/Webhook"}"
+                            Konfigurasi Aktif: Role "
+                            {currentRoleForSelected === "admin"
+                              ? "Admin"
+                              : currentRoleForSelected === "seller"
+                                ? "Seller"
+                                : currentRoleForSelected === "store"
+                                  ? "Store"
+                                  : "Store/Webhook"}
+                            "
                           </h4>
                           <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                            Endpoint ini berawal dengan path <span className="font-mono bg-brand-bg px-1 py-0.5 rounded text-amber-300">/api/v1/{currentRoleForSelected}</span>.
-                            Menggunakan konfigurasi independen tersimpan di bawah ini. Harap masukan Token untuk mencoba simulasi otorisasi nyata.
+                            Endpoint ini berawal dengan path{" "}
+                            <span className="font-mono bg-brand-bg px-1 py-0.5 rounded text-amber-300">
+                              /api/v1/{currentRoleForSelected}
+                            </span>
+                            . Menggunakan konfigurasi independen tersimpan di
+                            bawah ini. Harap masukan Token untuk mencoba
+                            simulasi otorisasi nyata.
                           </p>
                         </div>
                       </div>
@@ -763,9 +1106,12 @@ export default function App() {
                   ) : (
                     <div className="min-h-[350px] flex flex-col items-center justify-center text-center p-8 bg-brand-sidebar border border-slate-900 rounded-xl">
                       <HelpCircle className="w-10 h-10 text-slate-650 mb-2 animate-pulse" />
-                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Harap Pilih Rute API</h3>
+                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                        Harap Pilih Rute API
+                      </h3>
                       <p className="text-xs text-slate-500 mt-1.5 max-w-xs">
-                        Pilih salah satu metode & rute rujukan API di daftar sebelah kiri untuk memunculkan panel simulasi nyata.
+                        Pilih salah satu metode & rute rujukan API di daftar
+                        sebelah kiri untuk memunculkan panel simulasi nyata.
                       </p>
                     </div>
                   )}
@@ -775,9 +1121,12 @@ export default function App() {
               {workspaceTab === "config" && (
                 <div className="space-y-6">
                   <div className="p-4 bg-brand-sidebar border border-slate-900 rounded-xl">
-                    <h3 className="text-sm font-semibold text-white mb-2">Pilih Role Autentikasi</h3>
+                    <h3 className="text-sm font-semibold text-white mb-2">
+                      Pilih Role Autentikasi
+                    </h3>
                     <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                      Atur URL dasar (Base URL) dan Header default (misalnya authorization Token Bearer) untuk masing-masing role.
+                      Atur URL dasar (Base URL) dan Header default (misalnya
+                      authorization Token Bearer) untuk masing-masing role.
                     </p>
                     <div className="flex gap-2">
                       {["admin", "seller", "store"].map((role) => (
@@ -798,31 +1147,35 @@ export default function App() {
                   <RoleConfigurationManager
                     currentRole={configTabRole}
                     config={roleConfigs[configTabRole] || roleConfigs["admin"]}
-                    onConfigChange={(newCfg) => setRoleConfigs(prev => ({ ...prev, [configTabRole]: newCfg }))}
+                    onConfigChange={(newCfg) =>
+                      setRoleConfigs((prev) => ({
+                        ...prev,
+                        [configTabRole]: newCfg,
+                      }))
+                    }
                     onReset={() => handleResetRoleConfig(configTabRole)}
                   />
                 </div>
               )}
 
-              {workspaceTab === "runner" && (
+              <div className={workspaceTab === "runner" ? "block" : "hidden"}>
                 <AutoRunnerPanel
                   endpoints={endpoints}
                   roleConfigs={roleConfigs}
                   responseHistory={responseHistory}
                   onUpdateHistory={(updatedHistory) => {
                     setResponseHistory(updatedHistory);
-                    localStorage.setItem("qian_response_history", JSON.stringify(updatedHistory));
+                    localStorage.setItem(
+                      "qian_response_history",
+                      JSON.stringify(updatedHistory),
+                    );
                   }}
                   isUsingFallback={isUsingFallback}
-                  onSelectEndpoint={(ep) => {
-                    setSelectedEndpoint(ep);
-                    setWorkspaceTab("sandbox");
-                  }}
+                  onSelectEndpoint={(ep) => setSelectedEndpoint(ep)}
+                  onStartBulkRun={() => setWorkspaceTab("sandbox")}
                 />
-              )}
-
+              </div>
             </div>
-
           </div>
         )}
       </main>
@@ -832,7 +1185,8 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span>QianPulsa Core API v1.0 • Simulator Penguji</span>
           <span className="text-slate-500 font-sans">
-            Menyimpan data konfigurasi & log respon status dienkripsi lokal pada browser Anda.
+            Menyimpan data konfigurasi & log respon status dienkripsi lokal pada
+            browser Anda.
           </span>
         </div>
       </footer>

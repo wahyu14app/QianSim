@@ -51,6 +51,11 @@ export interface RoleConfig {
   baseUrl: string;
   headers: Record<string, string>; // e.g. Authorization, x-app-client-key
   savedValues: Record<string, Record<string, any>>; // Maps key: "method:path" to key-value parameters/body fields
+  credentials?: {
+    email?: string;
+    password?: string;
+    otpCode?: string;
+  };
 }
 
 export interface ResponseLog {

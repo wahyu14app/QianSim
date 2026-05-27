@@ -13,6 +13,7 @@ interface AutoRunnerPanelProps {
   onUpdateHistory: (updatedHistory: ResponseCodeLogs) => void;
   isUsingFallback: boolean;
   onSelectEndpoint: (ep: ApiEndpoint) => void;
+  onStartBulkRun?: () => void;
 }
 
 interface RunStatus {
@@ -32,7 +33,8 @@ export default function AutoRunnerPanel({
   responseHistory,
   onUpdateHistory,
   isUsingFallback,
-  onSelectEndpoint
+  onSelectEndpoint,
+  onStartBulkRun
 }: AutoRunnerPanelProps) {
   // Memoize non-auth endpoints to keep the auto runner board clean and prevent resetting active auth tokens
   const activeEndpoints = React.useMemo(() => {
@@ -83,11 +85,34 @@ export default function AutoRunnerPanel({
         }
       }
 
+      let lastRunStatus: RunStatus["status"] = "idle";
+      let lastStatusCode: number | undefined = undefined;
+      let lastDuration: number | undefined = undefined;
+      let lastStatusText: string | undefined = undefined;
+
+      const epHistory = responseHistory[endpointKey];
+      if (epHistory) {
+        // Find the newest log for this endpoint regardless of status code
+        const logs = Object.values(epHistory).sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+        if (logs.length > 0) {
+          const newestLog = logs[0];
+          lastStatusCode = newestLog.status;
+          lastDuration = newestLog.durationMs;
+          lastStatusText = newestLog.statusText;
+          lastRunStatus = newestLog.status >= 200 && newestLog.status < 400 ? "success" : "error";
+        }
+      }
+
       return {
         endpointKey,
         method: ep.method,
         path: ep.path,
-        status: "idle",
+        status: lastRunStatus,
+        statusCode: lastStatusCode,
+        statusText: lastStatusText,
+        durationMs: lastDuration,
         isCustomized
       };
     });
@@ -190,11 +215,67 @@ export default function AutoRunnerPanel({
       }
     }
 
+    let hasEmptyPayload = false;
+    let emptyReason = "";
+
+    // Cleanup empty headers so they aren't sent if unrequired
+    const cleanHeaders: Record<string, string> = {};
+    for (const [k, v] of Object.entries(headers)) {
+      if (v !== undefined && v !== null && String(v).trim() !== "") {
+        cleanHeaders[k] = v;
+      }
+    }
+
+    // Validate only required parameters
+    if (ep.parameters) {
+      for (const p of ep.parameters) {
+        if (p.required) {
+          if (p.in === "path") {
+            const val = pathParams[p.name];
+            if (val === undefined || val === null || String(val).trim() === "") {
+              hasEmptyPayload = true;
+              emptyReason = `Parameter Path Wajib '${p.name}' kosong.`;
+              break;
+            }
+          } else if (p.in === "query") {
+            const val = queryParams[p.name];
+            if (val === undefined || val === null || String(val).trim() === "") {
+              hasEmptyPayload = true;
+              emptyReason = `Parameter Query Wajib '${p.name}' kosong.`;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Validate required Body Parameters
+    if (!hasEmptyPayload && ["POST", "PUT", "PATCH", "DELETE"].includes(ep.method) && ep.requestBody?.properties) {
+       for (const propName of Object.keys(ep.requestBody.properties)) {
+          const propDef = ep.requestBody.properties[propName];
+          if (propDef.required) {
+            let val;
+            if (bodyMode === "raw") {
+               try { val = JSON.parse(rawBodyJson)[propName]; } catch(e) {}
+            } else {
+               val = bodyParams?.[propName];
+            }
+            if (val === undefined || val === null || String(val).trim() === "") {
+               hasEmptyPayload = true;
+               emptyReason = `Parameter Body Wajib '${propName}' kosong.`;
+               break;
+            }
+          }
+       }
+    }
+
     return {
       url: fullUrl,
       method: ep.method,
-      headers,
-      body: bodyToSend
+      headers: cleanHeaders,
+      body: bodyToSend,
+      hasEmptyPayload,
+      emptyReason
     };
   };
 
@@ -204,9 +285,13 @@ export default function AutoRunnerPanel({
 
     setIsRunning(true);
     stopRequested.current = false;
+    onStartBulkRun?.();
     
     // Copy the original status entries to update them in real time
     const updatedStatuses = [...runStatuses];
+    
+    // We must track the growing history locally during the loop to avoid React state closure staleness
+    const accumulatedHistory = { ...responseHistory };
 
     // Reset all statuses first
     updatedStatuses.forEach((s) => {
@@ -241,9 +326,42 @@ export default function AutoRunnerPanel({
       updatedStatuses[statusIdx].status = "running";
       setCurrentIndex(i);
       setRunStatuses([...updatedStatuses]);
+      onSelectEndpoint(ep); // Select endpoint so user can see it in Simulator tab
 
       // Compile request data details
       const reqData = compileReqData(ep);
+
+      if (reqData.hasEmptyPayload) {
+        updatedStatuses[statusIdx].status = "error";
+        updatedStatuses[statusIdx].statusCode = 400;
+        updatedStatuses[statusIdx].statusText = "Payload Kosong";
+        setRunStatuses([...updatedStatuses]);
+        
+        const errorRecord: ResponseLog = {
+          endpointKey,
+          status: 400,
+          statusText: "Runner Berhenti: Payload Kosong",
+          durationMs: 0,
+          timestamp: new Date().toISOString(),
+          headers: {},
+          body: { error: reqData.emptyReason },
+          requestSent: {
+            url: reqData.url,
+            method: reqData.method,
+            headers: reqData.headers,
+            body: reqData.body
+          }
+        };
+
+        accumulatedHistory[endpointKey] = {
+          ...(accumulatedHistory[endpointKey] || {}),
+          [400]: errorRecord
+        };
+        onUpdateHistory({ ...accumulatedHistory });
+
+        setIsRunning(false); // Berhentikan eksekusi
+        break; // Auto runner berhenti total
+      }
 
       // Perform simulation fetch matching normal execution
       try {
@@ -330,13 +448,12 @@ export default function AutoRunnerPanel({
           }
         };
 
-        // Write to local responseHistory
-        const nextHistory = { ...responseHistory };
-        if (!nextHistory[endpointKey]) {
-          nextHistory[endpointKey] = {};
-        }
-        nextHistory[endpointKey][responsePayload.status] = logRecord;
-        onUpdateHistory(nextHistory);
+        // Write to local accumulated history to avoid closure-stale data
+        accumulatedHistory[endpointKey] = {
+          ...(accumulatedHistory[endpointKey] || {}),
+          [responsePayload.status]: logRecord
+        };
+        onUpdateHistory({ ...accumulatedHistory });
 
         // Update local list state
         updatedStatuses[statusIdx].status = responsePayload.status >= 200 && responsePayload.status < 400 ? "success" : "error";
@@ -362,12 +479,11 @@ export default function AutoRunnerPanel({
           }
         };
 
-        const nextHistory = { ...responseHistory };
-        if (!nextHistory[endpointKey]) {
-          nextHistory[endpointKey] = {};
-        }
-        nextHistory[endpointKey][600] = errorRecord;
-        onUpdateHistory(nextHistory);
+        accumulatedHistory[endpointKey] = {
+          ...(accumulatedHistory[endpointKey] || {}),
+          [600]: errorRecord
+        };
+        onUpdateHistory({ ...accumulatedHistory });
 
         updatedStatuses[statusIdx].status = "error";
         updatedStatuses[statusIdx].statusCode = 600;
@@ -581,7 +697,10 @@ export default function AutoRunnerPanel({
                     key={s.endpointKey} 
                     onClick={() => {
                       const matchedEp = endpoints.find(e => `${e.method}:${e.path}` === s.endpointKey);
-                      if (matchedEp) onSelectEndpoint(matchedEp);
+                      if (matchedEp) {
+                        onSelectEndpoint(matchedEp);
+                        onStartBulkRun?.(); // switch tab to simulator when row clicked manually!
+                      }
                     }}
                     className={`px-4 py-2.5 flex items-center justify-between text-xs hover:bg-slate-800/30 transition cursor-pointer ${
                       isCurrent ? "bg-indigo-950/20 border-l-2 border-indigo-500 pl-3.5" : ""

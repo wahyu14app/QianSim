@@ -15,12 +15,23 @@ export default function RoleConfigurationManager({
   onConfigChange,
   onReset,
 }: RoleConfigurationManagerProps) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [otpCode, setOtpCode] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginMsg, setLoginMsg] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  const email = config.credentials?.email || "";
+  const password = config.credentials?.password || "";
+  const otpCode = config.credentials?.otpCode || "";
+
+  const handleCredentialChange = (key: "email" | "password" | "otpCode", value: string) => {
+    onConfigChange({
+      ...config,
+      credentials: {
+        ...(config.credentials || {}),
+        [key]: value,
+      },
+    });
+  };
 
   const handleFieldChange = (key: keyof typeof config.headers | "baseUrl", value: string) => {
     if (key === "baseUrl") {
@@ -254,7 +265,7 @@ export default function RoleConfigurationManager({
                   type="text"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => handleCredentialChange("email", e.target.value)}
                   className="w-full bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   placeholder={`user@${currentRole}.com`}
                 />
@@ -265,7 +276,7 @@ export default function RoleConfigurationManager({
                   type="password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => handleCredentialChange("password", e.target.value)}
                   className="w-full bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   placeholder="**********"
                 />
@@ -277,7 +288,7 @@ export default function RoleConfigurationManager({
               <input
                 type="text"
                 value={otpCode}
-                onChange={(e) => setOtpCode(e.target.value)}
+                onChange={(e) => handleCredentialChange("otpCode", e.target.value)}
                 className="w-full sm:w-1/2 bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono tracking-widest text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 placeholder="000000"
                 maxLength={6}

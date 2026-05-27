@@ -9,6 +9,7 @@ interface EndpointListProps {
   onSelectEndpoint: (endpoint: ApiEndpoint) => void;
   activeRoleFilter: string;
   setActiveRoleFilter: (role: string) => void;
+  responseHistory: Record<string, any>;
 }
 
 export default function EndpointList({
@@ -17,6 +18,7 @@ export default function EndpointList({
   onSelectEndpoint,
   activeRoleFilter,
   setActiveRoleFilter,
+  responseHistory,
 }: EndpointListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("All Tags");
@@ -181,8 +183,17 @@ export default function EndpointList({
                     {ep.summary}
                   </span>
                   
-                  {/* Indicators */}
+                  {/* Indicators and Code History */}
                   <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                    {responseHistory[key] && Object.keys(responseHistory[key]).map(codeStr => {
+                      const code = parseInt(codeStr);
+                      const isSuccess = code >= 200 && code < 300;
+                      return (
+                        <span key={code} className={`px-1 py-0.5 text-[9px] rounded-sm font-mono border ${isSuccess ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                          {code}
+                        </span>
+                      )
+                    })}
                     {ep.securedBy.length > 0 && (
                       <span className="text-slate-500 flex items-center" title={`Protected by: ${ep.securedBy.join(", ")}`}>
                         <Lock className="w-2.5 h-2.5 text-amber-500/80" />

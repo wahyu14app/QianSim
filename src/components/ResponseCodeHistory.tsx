@@ -13,7 +13,11 @@ export default function ResponseCodeHistory({
 }: ResponseCodeHistoryProps) {
   const codes = Object.keys(logsForEndpoint)
     .map(Number)
-    .sort((a, b) => a - b);
+    .sort((a, b) => {
+      const timeA = new Date(logsForEndpoint[a].timestamp).getTime();
+      const timeB = new Date(logsForEndpoint[b].timestamp).getTime();
+      return timeB - timeA;
+    });
 
   const [activeCode, setActiveCode] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
