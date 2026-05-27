@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   Play, Shield, Terminal, RefreshCw, AlertCircle, Sparkles, Key, HelpCircle,
   Database, CheckCircle, Upload, Eye, FileText, Smartphone, HardDrive,
-  Menu, X
+  Menu, X, Activity
 } from "lucide-react";
 import { ApiEndpoint, RoleConfig, ResponseLog, ResponseCodeLogs } from "./types";
 import { getRoleFromPath, parseOpenApi } from "./utils";
@@ -240,6 +240,10 @@ export default function App() {
 
   // Sidebar Open State (for Mobile Navigation overlay)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Tabbed layout state for workspace right panel: sandbox (forms + history), config (credentials manager), runner (mass serial test)
+  const [workspaceTab, setWorkspaceTab] = useState<"sandbox" | "config" | "runner">("sandbox");
+  const [configTabRole, setConfigTabRole] = useState<"admin" | "seller" | "store">("admin");
 
   // Config setup & history load on mount
   useEffect(() => {
@@ -615,9 +619,12 @@ export default function App() {
             <div 
               id="sidebar-panel"
               className={`
-                fixed inset-y-0 left-0 w-[320px] sm:w-[380px] bg-brand-sidebar border-r border-slate-800 p-5 z-50 lg:z-0
-                transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:transform-none lg:static lg:col-span-4 lg:sticky lg:top-[100px] lg:h-[calc(100vh-140px)]
-                transition-transform duration-300 ease-in-out flex flex-col gap-4 overflow-hidden lg:bg-transparent lg:border-none lg:p-0
+                fixed lg:sticky inset-y-0 lg:inset-auto left-0 lg:left-auto lg:top-[100px] lg:h-[calc(100vh-140px)]
+                w-[300px] sm:w-[360px] lg:w-full lg:col-span-3
+                bg-brand-sidebar lg:bg-transparent border-r border-slate-900 lg:border-none p-5 lg:p-0
+                z-50 lg:z-0
+                transform ${isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+                transition-transform duration-300 ease-in-out flex flex-col gap-4 overflow-hidden
               `}
             >
               {/* Drawer Header for small viewports */}
@@ -662,6 +669,7 @@ export default function App() {
                   selectedEndpoint={selectedEndpoint}
                   onSelectEndpoint={(ep) => {
                     setSelectedEndpoint(ep);
+                    setWorkspaceTab("sandbox"); // Auto-switch to sandbox on endpoint activation
                     setIsSidebarOpen(false); // auto-close drawer on mobile when tap endpoint
                   }}
                   activeRoleFilter={activeRoleFilter}
@@ -671,75 +679,148 @@ export default function App() {
             </div>
 
             {/* Right Column: Interaction Sandbox Forms & Responses Log History */}
-            <div className="lg:col-span-8 space-y-6">
-              <AutoRunnerPanel
-                endpoints={endpoints}
-                roleConfigs={roleConfigs}
-                responseHistory={responseHistory}
-                onUpdateHistory={(updatedHistory) => {
-                  setResponseHistory(updatedHistory);
-                  localStorage.setItem("qian_response_history", JSON.stringify(updatedHistory));
-                }}
-                isUsingFallback={isUsingFallback}
-                onSelectEndpoint={(ep) => setSelectedEndpoint(ep)}
-              />
+            <div className="lg:col-span-9 flex flex-col gap-6">
+              
+              {/* Clean Minimalist Tab Bar */}
+              <div className="grid grid-cols-3 bg-brand-sidebar border border-slate-900 p-1 rounded-xl select-none shrink-0 font-sans shadow-sm">
+                <button
+                  id="tab-view-sandbox"
+                  onClick={() => setWorkspaceTab("sandbox")}
+                  className={`py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    workspaceTab === "sandbox"
+                      ? "bg-indigo-600 text-white shadow"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Play className={`w-3.5 h-3.5 ${workspaceTab === "sandbox" ? "fill-current" : ""}`} />
+                  <span className="truncate">Simulator Kirim</span>
+                </button>
+                
+                <button
+                  id="tab-view-config"
+                  onClick={() => setWorkspaceTab("config")}
+                  className={`py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    workspaceTab === "config"
+                      ? "bg-indigo-600 text-white shadow"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span className="truncate">Token & Credentials</span>
+                </button>
+                
+                <button
+                  id="tab-view-runner"
+                  onClick={() => setWorkspaceTab("runner")}
+                  className={`py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                    workspaceTab === "runner"
+                      ? "bg-indigo-600 text-white shadow"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Activity className="w-3.5 h-3.5" />
+                  <span className="truncate">Auto-Runner Board</span>
+                </button>
+              </div>
 
-              {selectedEndpoint ? (
-                <>
-                  {/* Dynamic Instruction Card per Role detected */}
-                  <div className="flex gap-4 p-4 bg-brand-sidebar border border-slate-800 rounded-xl">
-                    <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg shrink-0 h-10 w-10 flex items-center justify-center">
-                      <Sparkles className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest">
-                        Konfigurasi Aktif: Role "{currentRoleForSelected === "admin" ? "Admin" : currentRoleForSelected === "seller" ? "Seller" : currentRoleForSelected === "store" ? "Store" : "Store/Webhook"}"
-                      </h4>
-                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                        Endpoint ini berawal dengan path <span className="font-mono bg-brand-bg px-1 py-0.5 rounded text-amber-300">/api/v1/{currentRoleForSelected}</span>.
-                        Menggunakan konfigurasi independen tersimpan di bawah ini. Harap masukan Token untuk mencoba simulasi otorisasi nyata.
-                      </p>
-                    </div>
-                  </div>
+              {/* Tab views conditional components */}
+              {workspaceTab === "sandbox" && (
+                <div className="space-y-6">
+                  {selectedEndpoint ? (
+                    <>
+                      {/* Dynamic Instruction Card per Role detected */}
+                      <div className="flex gap-4 p-4 bg-brand-sidebar border border-slate-900 rounded-xl">
+                        <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg shrink-0 h-10 w-10 flex items-center justify-center">
+                          <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-200 uppercase tracking-widest">
+                            Konfigurasi Aktif: Role "{currentRoleForSelected === "admin" ? "Admin" : currentRoleForSelected === "seller" ? "Seller" : currentRoleForSelected === "store" ? "Store" : "Store/Webhook"}"
+                          </h4>
+                          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Endpoint ini berawal dengan path <span className="font-mono bg-brand-bg px-1 py-0.5 rounded text-amber-300">/api/v1/{currentRoleForSelected}</span>.
+                            Menggunakan konfigurasi independen tersimpan di bawah ini. Harap masukan Token untuk mencoba simulasi otorisasi nyata.
+                          </p>
+                        </div>
+                      </div>
 
-                  {/* Config & Forms Container */}
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    {/* Center left: Config details */}
-                    <RoleConfigurationManager
-                      currentRole={currentRoleForSelected}
-                      config={currentConfig}
-                      onConfigChange={handleRoleConfigChange}
-                      onReset={() => handleResetRoleConfig(currentRoleForSelected)}
-                    />
-
-                    {/* Center right: Sandbox forms */}
-                    <div className="flex flex-col gap-6">
+                      {/* Sandbox forms */}
                       <ProxyRequestForm
                         endpoint={selectedEndpoint}
                         roleConfig={currentConfig}
                         onExecute={handleExecuteRequest}
                         isLoading={isExecutingRequest}
                       />
-                    </div>
-                  </div>
 
-                  {/* Code Log Snapshots segment */}
-                  <div className="pt-2">
-                    <ResponseCodeHistory
-                      logsForEndpoint={activeLogsForSelected}
-                      onClearLogs={handleClearLogsForEndpoint}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 bg-brand-sidebar border border-slate-800 rounded-xl">
-                  <HelpCircle className="w-12 h-12 text-slate-600 mb-2 animate-pulse" />
-                  <h3 className="text-sm font-semibold text-slate-350">Harap Pilih Endpoint API</h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-sm">
-                    Pilih salah satu metode & rute rujukan API di daftar sebelah kiri untuk memunculkan panel simulasi nyata.
-                  </p>
+                      {/* Code Log Snapshots segment */}
+                      <div className="pt-2">
+                        <ResponseCodeHistory
+                          logsForEndpoint={activeLogsForSelected}
+                          onClearLogs={handleClearLogsForEndpoint}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="min-h-[350px] flex flex-col items-center justify-center text-center p-8 bg-brand-sidebar border border-slate-900 rounded-xl">
+                      <HelpCircle className="w-10 h-10 text-slate-650 mb-2 animate-pulse" />
+                      <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Harap Pilih Rute API</h3>
+                      <p className="text-xs text-slate-500 mt-1.5 max-w-xs">
+                        Pilih salah satu metode & rute rujukan API di daftar sebelah kiri untuk memunculkan panel simulasi nyata.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {workspaceTab === "config" && (
+                <div className="space-y-6">
+                  <div className="p-4 bg-brand-sidebar border border-slate-900 rounded-xl">
+                    <h3 className="text-sm font-semibold text-white mb-2">Pilih Role Autentikasi</h3>
+                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                      Atur URL dasar (Base URL) dan Header default (misalnya authorization Token Bearer) untuk masing-masing role.
+                    </p>
+                    <div className="flex gap-2">
+                      {["admin", "seller", "store"].map((role) => (
+                        <button
+                          key={role}
+                          onClick={() => setConfigTabRole(role as any)}
+                          className={`capitalize px-4 py-2 rounded-lg text-xs font-semibold transition ${
+                            configTabRole === role
+                              ? "bg-indigo-600 text-white shadow"
+                              : "bg-slate-800 text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {role}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <RoleConfigurationManager
+                    currentRole={configTabRole}
+                    config={roleConfigs[configTabRole] || roleConfigs["admin"]}
+                    onConfigChange={(newCfg) => setRoleConfigs(prev => ({ ...prev, [configTabRole]: newCfg }))}
+                    onReset={() => handleResetRoleConfig(configTabRole)}
+                  />
+                </div>
+              )}
+
+              {workspaceTab === "runner" && (
+                <AutoRunnerPanel
+                  endpoints={endpoints}
+                  roleConfigs={roleConfigs}
+                  responseHistory={responseHistory}
+                  onUpdateHistory={(updatedHistory) => {
+                    setResponseHistory(updatedHistory);
+                    localStorage.setItem("qian_response_history", JSON.stringify(updatedHistory));
+                  }}
+                  isUsingFallback={isUsingFallback}
+                  onSelectEndpoint={(ep) => {
+                    setSelectedEndpoint(ep);
+                    setWorkspaceTab("sandbox");
+                  }}
+                />
+              )}
+
             </div>
 
           </div>

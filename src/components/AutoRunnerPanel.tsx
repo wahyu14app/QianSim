@@ -34,6 +34,14 @@ export default function AutoRunnerPanel({
   isUsingFallback,
   onSelectEndpoint
 }: AutoRunnerPanelProps) {
+  // Memoize non-auth endpoints to keep the auto runner board clean and prevent resetting active auth tokens
+  const activeEndpoints = React.useMemo(() => {
+    return endpoints.filter((ep) => {
+      const p = ep.path.toLowerCase();
+      return !p.includes("/auth/") && !p.includes("/login") && !p.includes("/register") && !p.includes("/otp");
+    });
+  }, [endpoints]);
+
   // Config state
   const [filterMode, setFilterMode] = useState<"all" | "custom_only">("custom_only");
   const [delayMs, setDelayMs] = useState<number>(300); // delay between requests to avoid rate limits
@@ -51,7 +59,7 @@ export default function AutoRunnerPanel({
   useEffect(() => {
     if (isRunning) return; // don't disrupt during run
 
-    const statuses: RunStatus[] = endpoints.map((ep) => {
+    const statuses: RunStatus[] = activeEndpoints.map((ep) => {
       const endpointKey = `${ep.method}:${ep.path}`;
       const role = getRoleFromPath(ep.path);
       
@@ -85,7 +93,7 @@ export default function AutoRunnerPanel({
     });
 
     setRunStatuses(statuses);
-  }, [endpoints, isRunning]);
+  }, [activeEndpoints, isRunning]);
 
   // Helper to compile request parameters for a high-fidelity simulator fetch
   const compileReqData = (ep: ApiEndpoint) => {
@@ -192,7 +200,7 @@ export default function AutoRunnerPanel({
 
   // Run all active configured APIs sequentially
   const startBulkRun = async () => {
-    if (endpoints.length === 0 || isRunning) return;
+    if (activeEndpoints.length === 0 || isRunning) return;
 
     setIsRunning(true);
     stopRequested.current = false;
@@ -210,13 +218,13 @@ export default function AutoRunnerPanel({
     setRunStatuses([...updatedStatuses]);
 
     // Gather active list
-    for (let i = 0; i < endpoints.length; i++) {
+    for (let i = 0; i < activeEndpoints.length; i++) {
       if (stopRequested.current) {
         setIsRunning(false);
         break;
       }
 
-      const ep = endpoints[i];
+      const ep = activeEndpoints[i];
       const endpointKey = `${ep.method}:${ep.path}`;
       const statusIdx = updatedStatuses.findIndex((s) => s.endpointKey === endpointKey);
 
@@ -387,7 +395,7 @@ export default function AutoRunnerPanel({
   const totalRan = runStatuses.filter((s) => s.status !== "idle" && s.status !== "skipped").length;
   const totalSkipped = runStatuses.filter((s) => s.status === "skipped").length;
   const totalCustomized = runStatuses.filter((s) => s.isCustomized).length;
-  const activeTargets = filterMode === "custom_only" ? totalCustomized : endpoints.length;
+  const activeTargets = filterMode === "custom_only" ? totalCustomized : activeEndpoints.length;
   
   const successCount = runStatuses.filter((s) => s.status === "success").length;
   const errorCount = runStatuses.filter((s) => s.status === "error").length;
@@ -442,7 +450,7 @@ export default function AutoRunnerPanel({
                   onClick={() => setFilterMode("custom_only")}
                   className={`flex-1 text-[11px] font-semibold py-1.5 px-2 rounded transition text-center cursor-pointer ${
                     filterMode === "custom_only"
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-indigo-650 text-white"
                       : "text-slate-400 hover:text-slate-200 disabled:opacity-40"
                   }`}
                 >
@@ -454,11 +462,11 @@ export default function AutoRunnerPanel({
                   onClick={() => setFilterMode("all")}
                   className={`flex-1 text-[11px] font-semibold py-1.5 px-2 rounded transition text-center cursor-pointer ${
                     filterMode === "all"
-                      ? "bg-indigo-600 text-white"
+                      ? "bg-indigo-650 text-white"
                       : "text-slate-400 hover:text-slate-200 disabled:opacity-40"
                   }`}
                 >
-                  Semua Rute ({endpoints.length})
+                  Semua Rute ({activeEndpoints.length})
                 </button>
               </div>
             </div>
