@@ -4,14 +4,13 @@ import {
   Settings, ChevronRight, Activity, Layers, CheckCircle, Database 
 } from "lucide-react";
 import { ApiEndpoint, RoleConfig, ResponseCodeLogs, ResponseLog } from "../types";
-import { getRoleFromPath, generateMockBody } from "../utils";
+import { getRoleFromPath, generateMockBody, universalFetch } from "../utils";
 
 interface AutoRunnerPanelProps {
   endpoints: ApiEndpoint[];
   roleConfigs: Record<string, RoleConfig>;
   responseHistory: ResponseCodeLogs;
   onUpdateHistory: (updatedHistory: ResponseCodeLogs) => void;
-  isUsingFallback: boolean;
   onSelectEndpoint: (ep: ApiEndpoint) => void;
   onStartBulkRun?: () => void;
 }
@@ -32,7 +31,6 @@ export default function AutoRunnerPanel({
   roleConfigs,
   responseHistory,
   onUpdateHistory,
-  isUsingFallback,
   onSelectEndpoint,
   onStartBulkRun
 }: AutoRunnerPanelProps) {
@@ -365,71 +363,7 @@ export default function AutoRunnerPanel({
 
       // Perform simulation fetch matching normal execution
       try {
-        let responsePayload;
-
-        const isStaticOrWebView = isUsingFallback || 
-                                  window.location.protocol === "file:" || 
-                                  window.location.hostname.includes("github.io") || 
-                                  window.location.hostname.includes("vercel.app") ||
-                                  window.location.hostname.includes("github");
-
-        if (isStaticOrWebView) {
-          const startTime = Date.now();
-          const fetchOptions: RequestInit = {
-            method: reqData.method,
-            headers: reqData.headers,
-          };
-          if (reqData.body && ["POST", "PUT", "PATCH", "DELETE"].includes(reqData.method.toUpperCase())) {
-            fetchOptions.body = typeof reqData.body === "string" ? reqData.body : JSON.stringify(reqData.body);
-          }
-
-          try {
-            const response = await fetch(reqData.url, fetchOptions);
-            const duration = Date.now() - startTime;
-            
-            let responseBodyText = "";
-            try { responseBodyText = await response.text(); } catch (e) {}
-
-            let parsedBody: any = null;
-            try { parsedBody = JSON.parse(responseBodyText); } catch (e) { parsedBody = responseBodyText; }
-
-            const resHeaders: Record<string, string> = {};
-            response.headers.forEach((v, k) => { resHeaders[k] = v; });
-
-            responsePayload = {
-              status: response.status,
-              statusText: response.statusText,
-              durationMs: duration,
-              headers: resHeaders,
-              body: parsedBody
-            };
-          } catch (directErr) {
-            // express proxy fallback
-            const resp = await fetch("/api/proxy-request", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                url: reqData.url,
-                method: reqData.method,
-                headers: reqData.headers,
-                body: reqData.body,
-              }),
-            });
-            responsePayload = await resp.json();
-          }
-        } else {
-          const resp = await fetch("/api/proxy-request", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              url: reqData.url,
-              method: reqData.method,
-              headers: reqData.headers,
-              body: reqData.body,
-            }),
-          });
-          responsePayload = await resp.json();
-        }
+        const responsePayload = await universalFetch(reqData);
 
         // Construct high fidelity log
         const logRecord: ResponseLog = {

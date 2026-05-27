@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Key, Shield, Globe, HardDrive, RefreshCw, LogIn, CheckCircle2, AlertCircle } from "lucide-react";
 import { RoleConfig } from "../types";
+import { universalFetch } from "../utils";
 
 interface RoleConfigurationManagerProps {
   currentRole: string;
@@ -69,19 +70,12 @@ export default function RoleConfigurationManager({
         payload.otpCode = otpCode;
       }
 
-      const fetchOptions = {
+      const data = await universalFetch({
+        url,
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url,
-          method: "POST",
-          headers: { ...config.headers, "Content-Type": "application/json" },
-          body: payload
-        })
-      };
-
-      const resp = await fetch("/api/proxy-request", fetchOptions);
-      const data = await resp.json();
+        headers: { ...config.headers, "Content-Type": "application/json" },
+        body: payload
+      });
       
       if (data.status >= 200 && data.status < 300) {
         let token = "";

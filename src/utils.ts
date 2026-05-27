@@ -187,3 +187,104 @@ export function generateMockBody(properties: Record<string, ApiProperty>): Recor
   }
   return result;
 }
+
+export async function universalFetch(reqData: {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body: any;
+}, forceProxy = false): Promise<any> {
+  const isStaticOrWebView =
+    !forceProxy && (
+    window.location.protocol === "file:" ||
+    window.location.hostname.includes("github.io") ||
+    window.location.hostname.includes("vercel.app") ||
+    window.location.hostname.includes("github") ||
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  );
+
+  const startTime = Date.now();
+  
+  if (isStaticOrWebView) {
+    try {
+      const fetchOptions: RequestInit = {
+        method: reqData.method,
+        headers: reqData.headers,
+      };
+
+      if (
+        reqData.body &&
+        ["POST", "PUT", "PATCH", "DELETE"].includes(
+          reqData.method.toUpperCase(),
+        )
+      ) {
+        fetchOptions.body =
+          typeof reqData.body === "string"
+            ? reqData.body
+            : JSON.stringify(reqData.body);
+      }
+
+      const response = await fetch(reqData.url, fetchOptions);
+      const duration = Date.now() - startTime;
+
+      let responseBodyText = "";
+      try {
+        responseBodyText = await response.text();
+      } catch (e) {
+        // ignore
+      }
+
+      let parsedBody: any = null;
+      try {
+        parsedBody = JSON.parse(responseBodyText);
+      } catch (e) {
+        parsedBody = responseBodyText;
+      }
+
+      const responseHeaders: Record<string, string> = {};
+      response.headers.forEach((val, key) => {
+        responseHeaders[key] = val;
+      });
+
+      // If we got a 404 or connection error and we are on localhost, maybe the server is running but CORS is blocking?
+      // Actually if it's 404 it might be the target URL. 
+      // But if it's a TypeError (failed to fetch), it's usually CORS.
+      
+      return {
+        status: response.status,
+        statusText: response.statusText,
+        durationMs: duration,
+        headers: responseHeaders,
+        body: parsedBody,
+      };
+    } catch (fetchErr: any) {
+      console.warn("Direct fetch failed, trying express proxy fallback...", fetchErr);
+    }
+  }
+
+  // Standard Express backend proxy path
+  try {
+    const resp = await fetch("/api/proxy-request", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: reqData.url,
+        method: reqData.method,
+        headers: reqData.headers,
+        body: reqData.body,
+      }),
+    });
+    return await resp.json();
+  } catch (err: any) {
+     return {
+        status: 600,
+        statusText: "Connection Error",
+        durationMs: Date.now() - startTime,
+        headers: {},
+        body: { error: err.message }
+      };
+  }
+}

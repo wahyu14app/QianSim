@@ -25,7 +25,7 @@ import {
   ResponseLog,
   ResponseCodeLogs,
 } from "./types";
-import { getRoleFromPath, parseOpenApi } from "./utils";
+import { getRoleFromPath, parseOpenApi, universalFetch } from "./utils";
 import RoleConfigurationManager from "./components/RoleConfigurationManager";
 import EndpointList from "./components/EndpointList";
 import ProxyRequestForm from "./components/ProxyRequestForm";
@@ -465,101 +465,7 @@ export default function App() {
       : "custom";
 
     try {
-      let responsePayload;
-
-      // Check if we are running in a static web view, github pages, or fallback mode
-      const isStaticOrWebView =
-        isUsingFallback ||
-        window.location.protocol === "file:" ||
-        window.location.hostname.includes("github.io") ||
-        window.location.hostname.includes("vercel.app") ||
-        window.location.hostname.includes("github");
-
-      if (isStaticOrWebView) {
-        // Direct browser/webview client-side fetch (perfect for Android WebView where CORS is bypassed or API allows CORS)
-        const startTime = Date.now();
-        const fetchOptions: RequestInit = {
-          method: reqData.method,
-          headers: reqData.headers,
-        };
-
-        if (
-          reqData.body &&
-          ["POST", "PUT", "PATCH", "DELETE"].includes(
-            reqData.method.toUpperCase(),
-          )
-        ) {
-          fetchOptions.body =
-            typeof reqData.body === "string"
-              ? reqData.body
-              : JSON.stringify(reqData.body);
-        }
-
-        try {
-          const response = await fetch(reqData.url, fetchOptions);
-          const duration = Date.now() - startTime;
-
-          let responseBodyText = "";
-          try {
-            responseBodyText = await response.text();
-          } catch (e) {
-            // ignore
-          }
-
-          let parsedBody: any = null;
-          try {
-            parsedBody = JSON.parse(responseBodyText);
-          } catch (e) {
-            parsedBody = responseBodyText;
-          }
-
-          const responseHeaders: Record<string, string> = {};
-          response.headers.forEach((val, key) => {
-            responseHeaders[key] = val;
-          });
-
-          responsePayload = {
-            status: response.status,
-            statusText: response.statusText,
-            durationMs: duration,
-            headers: responseHeaders,
-            body: parsedBody,
-          };
-        } catch (fetchErr: any) {
-          // If direct call fails (e.g. CORS block on local browser tests), try to delegate to server api proxy as fallback just in case
-          console.warn(
-            "Direct fetch failed, trying express proxy fallback...",
-            fetchErr,
-          );
-          const resp = await fetch("/api/proxy-request", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              url: reqData.url,
-              method: reqData.method,
-              headers: reqData.headers,
-              body: reqData.body,
-            }),
-          });
-          responsePayload = await resp.json();
-        }
-      } else {
-        // Standard Express backend proxy path
-        const resp = await fetch("/api/proxy-request", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            url: reqData.url,
-            method: reqData.method,
-            headers: reqData.headers,
-            body: reqData.body,
-          }),
-        });
-
-        responsePayload = await resp.json();
-      }
+      const responsePayload = await universalFetch(reqData);
 
       // Construct Response Log Object
       const logRecord: ResponseLog = {
@@ -1170,7 +1076,6 @@ export default function App() {
                       JSON.stringify(updatedHistory),
                     );
                   }}
-                  isUsingFallback={isUsingFallback}
                   onSelectEndpoint={(ep) => setSelectedEndpoint(ep)}
                   onStartBulkRun={() => setWorkspaceTab("sandbox")}
                 />
