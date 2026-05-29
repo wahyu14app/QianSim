@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1f6feb">
+    <meta name="description" content="QianPulsa API Smart Tester - Progressive Web App">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icon.svg">
+    <title>QianPulsa API Smart Tester</title>
+    <style>
+        :root {
+            --bg-base: #0d1117; --bg-side: #161b22; --bg-card: #21262d;
+            --border: #30363d; --text: #c9d1d9; --text-dim: #8b949e;
+            --accent: #1f6feb; --success: #238636; --error: #da3633; --warn: #d29922;
+        }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg-base); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        nav { background: var(--bg-side); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 500; transition: 0.2s; background: var(--bg-card); color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+        .btn:hover { background: #30363d; border-color: #8b949e; }
+        .btn-primary { background: var(--success); border-color: rgba(240,246,252,0.1); color: white; }
+        .btn-accent { background: var(--accent); color: white; border: none; }
+        .btn-danger { background: #442d30; color: #f85149; border-color: rgba(248,81,73,0.1); }
+
+        main { display: flex; flex: 1; overflow: hidden; display: none; }
+        main.ready { display: flex; }
+
+        #sidebar { width: 300px; background: var(--bg-side); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .role-selector { display: flex; background: #010409; padding: 4px; border-bottom: 1px solid var(--border); }
+        .role-tab { flex: 1; text-align: center; padding: 8px; font-size: 11px; cursor: pointer; color: var(--text-dim); border-radius: 6px; text-transform: uppercase; font-weight: bold; }
+        .role-tab.active { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
+
+        #api-tree { flex: 1; overflow-y: auto; padding: 10px; }
+        .tag-title { font-size: 11px; color: var(--text-dim); font-weight: 600; padding: 15px 5px 5px; text-transform: uppercase; border-bottom: 1px solid var(--border); margin-bottom: 5px; }
+        .api-item { padding: 8px 10px; font-size: 13px; cursor: pointer; border-radius: 6px; display: flex; gap: 8px; align-items: center; margin-bottom: 2px; }
+        .api-item:hover { background: rgba(177,186,196,0.12); }
+        .api-item.active { background: var(--accent); color: white; }
+        .method { font-size: 9px; font-weight: 800; width: 38px; text-align: center; padding: 2px 0; border-radius: 4px; background: #000; }
+        .GET { color: #4ec9b0; } .POST { color: #ce9178; } .PUT { color: #dcdcaa; } .DELETE { color: #f44747; }
+
+        #editor { flex: 1; overflow-y: auto; padding: 25px; border-right: 1px solid var(--border); background: var(--bg-base); }
+        .card { background: var(--bg-side); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600; margin-bottom: 10px; display: block; }
+        textarea { width: 100%; height: 200px; background: #010409; color: #79c0ff; border: 1px solid var(--border); padding: 12px; font-family: monospace; font-size: 12px; resize: vertical; border-radius: 6px; box-sizing: border-box; }
+
+        #right-panel { width: 500px; background: var(--bg-side); display: flex; flex-direction: column; }
+        .tabs { display: flex; background: #010409; border-bottom: 1px solid var(--border); overflow-x: auto; }
+        .tab { padding: 12px 16px; font-size: 12px; cursor: pointer; color: var(--text-dim); white-space: nowrap; border-right: 1px solid var(--border); }
+        .tab.active { background: var(--bg-side); color: var(--text); border-bottom: 2px solid var(--accent); }
+        .tab-content { flex: 1; padding: 15px; font-family: monospace; font-size: 12px; overflow-y: auto; white-space: pre-wrap; background: #0d1117; }
+
+        /* Settings specific styles */
+        .settings-form input, .settings-form select { width: 100%; padding: 8px; background: #000; border: 1px solid var(--border); color: white; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box; font-size: 12px; }
+        .settings-form textarea { height: 100px; margin-bottom: 10px; }
+
+        /* Setup Screen Overlay */
+        #overlay { position: fixed; inset: 0; background: var(--bg-base); z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .setup-box { max-width: 550px; width: 90%; padding: 40px; background: var(--bg-side); border: 1px solid var(--border); border-radius: 12px; }
+    </style>
+</head>
+<body>
+
+<div id="overlay">
+    <div class="setup-box" id="init-box">
+        <h1 style="margin-top:0">QianPulsa Tester</h1>
+        <p style="color:var(--text-dim); margin-bottom:30px">Hubungkan folder lokal Anda untuk mulai menyimpan data secara permanen.</p>
+        <button class="btn btn-primary" style="padding:15px 30px; font-size:16px" onclick="connectNewWorkspace()">📁 HUBUNGKAN WORKSPACE</button>
+    </div>
+    <div class="setup-box" id="resume-box" style="display:none">
+        <h1 style="margin-top:0">Selamat Datang Kembali</h1>
+        <p style="color:var(--text-dim); margin-bottom:30px">Klik tombol di bawah untuk mengaktifkan kembali akses ke folder lokal Anda.</p>
+        <button class="btn btn-primary" style="padding:15px 30px; font-size:16px" onclick="resumeWorkspace()">🔓 AKTIFKAN WORKSPACE</button>
+        <div style="margin-top:20px; color:var(--accent); cursor:pointer; font-size:13px" onclick="connectNewWorkspace()">Gunakan Folder Lain</div>
+    </div>
+</div>
+
+<nav>
+    <div style="display:flex; align-items:center; gap:15px">
+        <strong style="color:var(--accent); font-size:18px">QianPulsa</strong>
+        <span id="ws-name" style="font-size:12px; color:var(--text-dim)"></span>
+    </div>
+    <div style="display:flex; gap:10px">
+        <button id="install-btn" class="btn btn-ghost" style="display:none; color:var(--warn); border-color:var(--warn)" onclick="installApp()">📲 Install App</button>
+        <button class="btn btn-ghost" onclick="showSettings()">⚙️ Settings</button>
+        <button id="login-btn" class="btn btn-accent" onclick="triggerAutoLogin()">🔑 LOGIN [ROLE]</button>
+        <button id="run-btn" class="btn btn-primary" onclick="startRoleRunner()">▶ RUN [ROLE]</button>
+        <button id="stop-btn" class="btn btn-primary" style="background:var(--error); display:none" onclick="stopRunner()">⏹ STOP</button>
+    </div>
+</nav>
+
+<main id="app-body">
+    <div id="sidebar">
+        <div class="role-selector">
+            <div class="role-tab active" onclick="switchRole('admin', this)">Admin</div>
+            <div class="role-tab" onclick="switchRole('seller', this)">Seller</div>
+            <div class="role-tab" onclick="switchRole('store', this)">Store</div>
+            <div class="role-tab" onclick="switchRole('public', this)">Public</div>
+        </div>
+        <div id="api-tree"></div>
+    </div>
+
+    <div id="editor">
+        <div id="no-api" style="text-align:center; padding-top:150px; color:var(--text-dim)">Pilih API di sebelah kiri</div>
+        <div id="api-editor" style="display:none">
+            <h2 id="edit-title" style="margin-top:0"></h2>
+            <div class="card"><span class="label">Endpoint</span><code id="edit-path" style="color:var(--accent)"></code></div>
+            <div class="label">Custom Request Body (JSON)</div>
+            <textarea id="body-json" spellcheck="false" style="height: 350px;"></textarea>
+            <div style="display:flex; gap:10px; margin-top:15px">
+                <button class="btn btn-accent" style="flex:1" onclick="saveOverride()">💾 Simpan Body</button>
+                <button class="btn btn-primary" style="flex:1" onclick="runSingle()">⚡ Test Sekarang</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="right-panel">
+        <div class="tabs" id="res-tabs">
+            <div class="tab active" data-target="logs" onclick="selectTab(this)">Live Logs</div>
+            <div id="latest-tab-btn" class="tab" data-target="latest" onclick="selectTab(this)">Latest Result</div>
+            <div id="settings-tab-btn" class="tab" data-target="settings-content" onclick="selectTab(this)">⚙️ Configuration</div>
+        </div>
+        <div id="logs" class="tab-content"></div>
+        <div id="latest" class="tab-content" style="display:none"></div>
+        <div id="settings-content" class="tab-content settings-form" style="display:none; font-family: sans-serif;">
+            <h3 style="margin-top:0">Workspace & Header Settings</h3>
+            <label class="label">Swagger OpenAPI URL</label>
+            <input id="set-swagger" type="text" value="https://qianpulsa-coreapi-v1.onrender.com/docs/json">
+            <button class="btn btn-ghost" style="width:100%; margin-bottom:20px" onclick="parseSwagger()">🔄 Sync & Parse OpenAPI</button>
+
+            <label class="label">Base URL API</label>
+            <input id="set-baseurl" type="text" value="https://qianpulsa-coreapi-v1.onrender.com">
+
+            <label class="label">Global Client Key</label>
+            <input id="set-ckey" type="password">
+
+            <hr style="border:0; border-top:1px solid var(--border); margin:20px 0">
+            
+            <label class="label">Role Config (Headers & Credentials)</label>
+            <select id="role-config-select" onchange="loadRoleConfigToUI()">
+                <option value="admin">Admin</option>
+                <option value="seller">Seller</option>
+                <option value="store">Store</option>
+            </select>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+                <div>
+                    <label class="label">Headers (JSON)</label>
+                    <textarea id="role-headers-json" spellcheck="false"></textarea>
+                </div>
+                <div>
+                    <label class="label">Credentials (JSON)</label>
+                    <textarea id="role-creds-json" spellcheck="false"></textarea>
+                </div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px">
+                <button class="btn btn-primary" style="flex:1" onclick="saveSettings()">Simpan Konfigurasi</button>
+                <button class="btn btn-danger" onclick="disconnectWS()">Keluar Workspace</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    let ws = null;
+    let config = { swaggerUrl: '', baseUrl: '', clientKey: '', overrides: {}, tokens: {}, roleConfigs: {
+        admin: { headers: { "x-app-origin": "admin" }, creds: { "email": "", "password": "" } },
+        seller: { headers: { "x-app-origin": "seller" }, creds: { "email": "", "password": "" } },
+        store: { headers: { "x-app-origin": "store", "x-store-id": "" }, creds: { "phone": "", "password": "" } }
+    }};
+    let manifest = { admin: [], seller: [], store: [], public: [] };
+    let currentRole = 'admin';
+    let selectedApi = null;
+    let stopReq = false;
+
+    // --- IndexedDB for Persistent Handle ---
+    async function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open("QianPulsaTesterDB", 1);
+            req.onupgradeneeded = () => req.result.createObjectStore("handles");
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    async function saveHandle(handle) {
+        const db = await openDB();
+        await db.transaction("handles", "readwrite").objectStore("handles").put(handle, "last_ws");
+    }
+
+    async function getStoredHandle() {
+        const db = await openDB();
+        return new Promise((resolve) => {
+            const req = db.transaction("handles").objectStore("handles").get("last_ws");
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+        });
+    }
+
+    // --- Startup Logic ---
+    window.onload = async () => {
+        const storedHandle = await getStoredHandle();
+        if (storedHandle) {
+            document.getElementById('init-box').style.display = 'none';
+            document.getElementById('resume-box').style.display = 'block';
+        }
+    };
+
+    async function connectNewWorkspace() {
+        try {
+            ws = await window.showDirectoryPicker({ mode: 'readwrite' });
+            await saveHandle(ws);
+            startApp();
+        } catch (e) { console.log("User cancelled folder picker"); }
+    }
+
+    async function resumeWorkspace() {
+        try {
+            ws = await getStoredHandle();
+            if (await ws.requestPermission({ mode: 'readwrite' }) === 'granted') {
+                startApp();
+            }
+        } catch (e) { alert("Gagal mengaktifkan folder. Silakan pilih folder ulang."); connectNewWorkspace(); }
+    }
+
+    async function disconnectWS() {
+        if(!confirm("Hapus sesi workspace saat ini? Anda harus memilih folder lagi nanti.")) return;
+        const db = await openDB();
+        await db.transaction("handles", "readwrite").objectStore("handles").delete("last_ws");
+        location.reload();
+    }
+
+    async function startApp() {
+        document.getElementById('overlay').style.display = 'none';
+        document.getElementById('app-body').classList.add('ready');
+        document.getElementById('ws-name').innerText = `Workspace: ${ws.name}`;
+        document.getElementById('run-btn').innerText = `▶ RUN [${currentRole.toUpperCase()}]`;
+        document.getElementById('login-btn').innerText = `🔑 LOGIN [${currentRole.toUpperCase()}]`;
+        await loadLocalData();
+        renderTree();
+    }
+
+    async function loadLocalData() {
+        try {
+            const configFile = await ws.getFileHandle('config.json');
+            const data = JSON.parse(await (await configFile.getFile()).text());
+            config = { ...config, ...data };
+            const manifestFile = await ws.getFileHandle('manifest.json');
+            manifest = JSON.parse(await (await manifestFile.getFile()).text());
+        } catch (e) { console.log("No existing data found in workspace."); }
+    }
+
+    async function saveConfig() {
+        const handle = await ws.getFileHandle('config.json', { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(JSON.stringify(config, null, 2));
+        await writable.close();
+    }
+
+    // --- Core Logic ---
+    function showSettings() {
+        document.getElementById('set-swagger').value = config.swaggerUrl || '';
+        document.getElementById('set-baseurl').value = config.baseUrl || '';
+        document.getElementById('set-ckey').value = config.clientKey || '';
+        loadRoleConfigToUI();
+        selectTab(document.getElementById('settings-tab-btn'));
+    }
+
+    function loadRoleConfigToUI() {
+        const role = document.getElementById('role-config-select').value;
+        const rConf = config.roleConfigs[role] || { headers: {}, creds: {} };
+        document.getElementById('role-headers-json').value = JSON.stringify(rConf.headers, null, 2);
+        document.getElementById('role-creds-json').value = JSON.stringify(rConf.creds, null, 2);
+    }
+
+    async function saveSettings() {
+        config.swaggerUrl = document.getElementById('set-swagger').value;
+        config.baseUrl = document.getElementById('set-baseurl').value;
+        config.clientKey = document.getElementById('set-ckey').value;
+        const role = document.getElementById('role-config-select').value;
+        try {
+            config.roleConfigs[role] = {
+                headers: JSON.parse(document.getElementById('role-headers-json').value),
+                creds: JSON.parse(document.getElementById('role-creds-json').value)
+            };
+            await saveConfig();
+            addLog("Konfigurasi disimpan!", "success");
+        } catch(e) { alert("Format JSON tidak valid!"); }
+    }
+
+    async function triggerAutoLogin() {
+        if (currentRole === 'public') return;
+        const rConf = config.roleConfigs[currentRole];
+        const loginApi = manifest[currentRole]?.find(a => a.path.includes('/auth/login'));
+        if (!loginApi) return alert("Login API tidak ditemukan.");
+        
+        addLog(`Logging in ${currentRole.toUpperCase()}...`, "info");
+        try {
+            const res = await fetch(`${config.baseUrl}${loginApi.path}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-app-client-key': config.clientKey, ...(rConf.headers || {}) },
+                body: JSON.stringify(rConf.creds)
+            });
+            const data = await res.json();
+            if (data.data?.requiresOtp || data.message?.toLowerCase().includes('otp')) {
+                const otp = prompt("Masukkan Kode OTP:");
+                if (otp) {
+                    const res2 = await fetch(`${config.baseUrl}${loginApi.path}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-app-client-key': config.clientKey, ...(rConf.headers || {}) },
+                        body: JSON.stringify({ ...rConf.creds, otpCode: otp })
+                    });
+                    handleLoginResponse(await res2.json());
+                }
+            } else { handleLoginResponse(data); }
+        } catch (e) { addLog("Login Error: " + e.message, "error"); }
+    }
+
+    function handleLoginResponse(data) {
+        const token = data.data?.token || data.token || data.accessToken;
+        if (token) {
+            config.tokens[currentRole] = token;
+            saveConfig();
+            addLog("Login Success!", "success");
+        } else { addLog("Login Failed: " + data.message, "error"); }
+    }
+
+    async function startRoleRunner() {
+        stopReq = false;
+        document.getElementById('run-btn').style.display = 'none';
+        document.getElementById('stop-btn').style.display = 'inline-block';
+        for (const api of manifest[currentRole]) {
+            if (stopReq) break;
+            if (api.path.includes('/auth/login') || api.path.includes('/webhook/')) continue;
+            const res = await execute(api);
+            renderResult(res);
+            await new Promise(r => setTimeout(r, 1500));
+        }
+        stopRunner();
+    }
+
+    function stopRunner() { stopReq = true; document.getElementById('run-btn').style.display = 'inline-block'; document.getElementById('stop-btn').style.display = 'none'; }
+
+    async function execute(api) {
+        const rConf = config.roleConfigs[currentRole] || { headers: {} };
+        const url = `${config.baseUrl}${api.path.replace(/{.*?}/g, 'test_id')}`;
+        const body = config.overrides?.[api.id] || api.body || {};
+        addLog(`Running ${api.method} ${api.path}...`, "info");
+        try {
+            const res = await fetch(url, {
+                method: api.method,
+                headers: { 'Content-Type': 'application/json', 'x-app-client-key': config.clientKey, ...(rConf.headers || {}), ...(config.tokens[currentRole] ? { 'Authorization': `Bearer ${config.tokens[currentRole]}` } : {}) },
+                body: api.method !== 'GET' ? JSON.stringify(body) : undefined
+            });
+            const data = await res.json();
+            const result = { path: api.path, method: api.method, status: res.status, request: body, response: data, timestamp: new Date().toLocaleTimeString() };
+            await saveResponseToDisk(currentRole, api, res.status, result);
+            return result;
+        } catch (e) { return { path: api.path, status: 'ERR', response: e.message }; }
+    }
+
+    async function saveResponseToDisk(role, api, status, data) {
+        try {
+            const root = await ws.getDirectoryHandle('responses', { create: true });
+            const rDir = await root.getDirectoryHandle(role, { create: true });
+            const aSlug = api.path.replace(/[^a-z0-9]/gi, '_').toLowerCase() + '_' + api.method.toLowerCase();
+            const aDir = await rDir.getDirectoryHandle(aSlug, { create: true });
+            const file = await aDir.getFileHandle(`${status}.json`, { create: true });
+            const writable = await file.createWritable();
+            await writable.write(JSON.stringify(data, null, 2));
+            await writable.close();
+        } catch (e) { console.error("Disk Save Error", e); }
+    }
+
+    function switchRole(role, el) {
+        currentRole = role;
+        document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('run-btn').innerText = `▶ RUN [${role.toUpperCase()}]`;
+        document.getElementById('login-btn').innerText = `🔑 LOGIN [${role.toUpperCase()}]`;
+        renderTree();
+    }
+
+    function renderTree() {
+        const tree = document.getElementById('api-tree');
+        tree.innerHTML = '';
+        const items = manifest[currentRole] || [];
+        const groups = {};
+        items.forEach(i => { if (!groups[i.tag]) groups[i.tag] = []; groups[i.tag].push(i); });
+        for (const [tag, apis] of Object.entries(groups)) {
+            const g = document.createElement('div');
+            g.innerHTML = `<div class="tag-title">${tag}</div>`;
+            apis.forEach(api => {
+                const it = document.createElement('div');
+                it.className = 'api-item';
+                it.innerHTML = `<span class="method ${api.method}">${api.method}</span><span>${api.summary}</span>`;
+                it.onclick = () => selectApi(api, it);
+                g.appendChild(it);
+            });
+            tree.appendChild(g);
+        }
+    }
+
+    function selectApi(api, el) {
+        selectedApi = api;
+        document.querySelectorAll('.api-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('no-api').style.display = 'none';
+        document.getElementById('api-editor').style.display = 'block';
+        document.getElementById('edit-title').innerText = api.summary;
+        document.getElementById('edit-path').innerText = api.path;
+        document.getElementById('body-json').value = JSON.stringify(config.overrides?.[api.id] || api.body || {}, null, 2);
+    }
+
+    async function saveOverride() {
+        config.overrides[selectedApi.id] = JSON.parse(document.getElementById('body-json').value);
+        await saveConfig();
+        addLog("Body saved.", "info");
+    }
+
+    async function runSingle() {
+        const res = await execute(selectedApi);
+        renderResult(res);
+        selectTab(document.getElementById('latest-tab-btn'));
+    }
+
+    function selectTab(el) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+        document.getElementById(el.dataset.target).style.display = 'block';
+    }
+
+    function renderResult(res) {
+        document.getElementById('latest').innerHTML = `
+            <div style="border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:10px">
+                <strong>${res.method} ${res.path}</strong> <span style="float:right; color:${res.status < 400 ? 'var(--success)' : 'var(--error)'}">${res.status}</span>
+            </div>
+            <pre style="background:#000; padding:10px; border-radius:4px; color:var(--success)">${JSON.stringify(res.response, null, 2)}</pre>
+        `;
+    }
+
+    function addLog(msg, type) {
+        const div = document.createElement('div');
+        div.style.color = type === 'success' ? 'var(--success)' : (type === 'error' ? 'var(--error)' : 'var(--text-dim)');
+        div.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        document.getElementById('logs').appendChild(div);
+        document.getElementById('logs').scrollTop = 99999;
+    }
+
+    async function parseSwagger() {
+        addLog("Syncing OpenAPI...", "info");
+        try {
+            const res = await fetch(document.getElementById('set-swagger').value);
+            const spec = await res.json();
+            const roles = { admin: [], seller: [], store: [], public: [] };
+            for (const [path, methods] of Object.entries(spec.paths)) {
+                for (const [method, detail] of Object.entries(methods)) {
+                    let r = path.includes('/admin/') ? 'admin' : (path.includes('/seller/') ? 'seller' : (path.includes('/store/') ? 'store' : 'public'));
+                    let body = {};
+                    const schema = detail.requestBody?.content?.['application/json']?.schema;
+                    if (schema && spec.components) {
+                        const props = schema.$ref ? spec.components.schemas[schema.$ref.split('/').pop()].properties : schema.properties;
+                        if (props) for (const [k, v] of Object.entries(props)) body[k] = v.default || (v.type === 'string' ? "" : 0);
+                    }
+                    roles[r].push({ id: `${method.toUpperCase()}:${path}`, path, method: method.toUpperCase(), tag: detail.tags?.[0] || 'General', summary: detail.summary || path, body });
+                }
+            }
+            manifest = roles;
+            const handle = await ws.getFileHandle('manifest.json', { create: true });
+            const writable = await handle.createWritable();
+            await writable.write(JSON.stringify(manifest, null, 2));
+            await writable.close();
+            renderTree();
+            addLog("OpenAPI Synced!", "success");
+        } catch (e) { addLog("Error: " + e.message, "error"); }
+    }
+
+    // --- PWA Logic ---
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const installBtn = document.getElementById('install-btn');
+        if (installBtn) installBtn.style.display = 'inline-flex';
+    });
+
+    async function installApp() {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            document.getElementById('install-btn').style.display = 'none';
+        }
+        deferredPrompt = null;
+    }
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').then(reg => {
+                console.log('SW registered:', reg);
+            }).catch(err => {
+                console.log('SW registration failed:', err);
+            });
+        });
+    }
+</script>
+</body>
+</html>

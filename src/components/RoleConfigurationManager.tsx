@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Key, Shield, Globe, HardDrive, RefreshCw, LogIn, CheckCircle2, AlertCircle } from "lucide-react";
 import { RoleConfig } from "../types";
-import { universalFetch } from "../utils";
 
 interface RoleConfigurationManagerProps {
   currentRole: string;
@@ -70,12 +69,19 @@ export default function RoleConfigurationManager({
         payload.otpCode = otpCode;
       }
 
-      const data = await universalFetch({
-        url,
+      const fetchOptions = {
         method: "POST",
-        headers: { ...config.headers, "Content-Type": "application/json" },
-        body: payload
-      });
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          method: "POST",
+          headers: { ...config.headers, "Content-Type": "application/json" },
+          body: payload
+        })
+      };
+
+      const resp = await fetch("/api/proxy-request", fetchOptions);
+      const data = await resp.json();
       
       if (data.status >= 200 && data.status < 300) {
         let token = "";
@@ -236,95 +242,97 @@ export default function RoleConfigurationManager({
         </div>
       </div>
 
-      <div className="bg-brand-sidebar border border-slate-900 rounded-xl p-4 sm:p-6 shadow-xl w-full">
-         <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
-              <LogIn className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-100 tracking-tight">
-                Auto-Login (Suntik Token Cepat)
-              </h2>
-              <p className="text-[10px] sm:text-xs text-slate-400 mt-1 max-w-sm">
-                Cobalah login menggunakan kredensial {currentRole}. Kosongkan OTP Code pada upaya pertama untuk memicu kode OTP.
-              </p>
-            </div>
-          </div>
-          
-          <form onSubmit={handleAutoLogin} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {!["public", "webhook"].includes(currentRole) && (
+        <div className="bg-brand-sidebar border border-slate-900 rounded-xl p-4 sm:p-6 shadow-xl w-full">
+           <div className="flex items-center gap-3 mb-5">
+              <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                <LogIn className="w-5 h-5" />
+              </div>
               <div>
-                <label className="block text-[11px] sm:text-xs font-medium text-slate-400 mb-1.5">Email / No. HP</label>
+                <h2 className="text-sm font-semibold text-slate-100 tracking-tight">
+                  Auto-Login (Suntik Token Cepat)
+                </h2>
+                <p className="text-[10px] sm:text-xs text-slate-400 mt-1 max-w-sm">
+                  Cobalah login menggunakan kredensial {currentRole}. Kosongkan OTP Code pada upaya pertama untuk memicu kode OTP.
+                </p>
+              </div>
+            </div>
+            
+            <form onSubmit={handleAutoLogin} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] sm:text-xs font-medium text-slate-400 mb-1.5">Email / No. HP</label>
+                  <input
+                    type="text"
+                    required
+                    value={email}
+                    onChange={(e) => handleCredentialChange("email", e.target.value)}
+                    className="w-full bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder={`user@${currentRole}.com`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] sm:text-xs font-medium text-slate-400 mb-1.5">Kata Sandi</label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => handleCredentialChange("password", e.target.value)}
+                    className="w-full bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    placeholder="**********"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] sm:text-xs font-medium text-slate-400 mb-1.5">OTP Code (Opsional)</label>
                 <input
                   type="text"
-                  required
-                  value={email}
-                  onChange={(e) => handleCredentialChange("email", e.target.value)}
-                  className="w-full bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder={`user@${currentRole}.com`}
+                  value={otpCode}
+                  onChange={(e) => handleCredentialChange("otpCode", e.target.value)}
+                  className="w-full sm:w-1/2 bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono tracking-widest text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  placeholder="000000"
+                  maxLength={6}
                 />
+                <p className="text-[10px] text-slate-500 mt-1.5">Kosongkan jika sistem memerlukan permintaan OTP baru saat submit.</p>
               </div>
-              <div>
-                <label className="block text-[11px] sm:text-xs font-medium text-slate-400 mb-1.5">Kata Sandi</label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => handleCredentialChange("password", e.target.value)}
-                  className="w-full bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  placeholder="**********"
-                />
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="bg-indigo-600 hover:bg-slate-700 text-white font-semibold text-xs py-2 px-6 rounded-lg shadow-md cursor-pointer transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-3.5 h-3.5" />
+                      Coba Login {currentRole}
+                    </>
+                  )}
+                </button>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-[11px] sm:text-xs font-medium text-slate-400 mb-1.5">OTP Code (Opsional)</label>
-              <input
-                type="text"
-                value={otpCode}
-                onChange={(e) => handleCredentialChange("otpCode", e.target.value)}
-                className="w-full sm:w-1/2 bg-brand-input border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono tracking-widest text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                placeholder="000000"
-                maxLength={6}
-              />
-              <p className="text-[10px] text-slate-500 mt-1.5">Kosongkan jika sistem memerlukan permintaan OTP baru saat submit.</p>
-            </div>
+              {loginMsg && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center gap-2 text-xs text-emerald-400 leading-relaxed mt-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  {loginMsg}
+                </div>
+              )}
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="bg-indigo-600 hover:bg-slate-700 text-white font-semibold text-xs py-2 px-6 rounded-lg shadow-md cursor-pointer transition disabled:opacity-50 flex items-center gap-2"
-              >
-                {isLoggingIn ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    Memproses...
-                  </>
-                ) : (
-                  <>
-                    <Key className="w-3.5 h-3.5" />
-                    Coba Login {currentRole}
-                  </>
-                )}
-              </button>
-            </div>
-
-            {loginMsg && (
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex items-center gap-2 text-xs text-emerald-400 leading-relaxed mt-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                {loginMsg}
-              </div>
-            )}
-
-            {loginError && (
-              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg flex items-center gap-2 text-xs text-rose-400 leading-relaxed mt-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span className="break-all">{loginError}</span>
-              </div>
-            )}
-          </form>
-      </div>
+              {loginError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-lg flex items-center gap-2 text-xs text-rose-400 leading-relaxed mt-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span className="break-all">{loginError}</span>
+                </div>
+              )}
+            </form>
+        </div>
+      )}
 
     </div>
   );

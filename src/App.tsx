@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   Activity,
+  FolderOpen
 } from "lucide-react";
 import {
   ApiEndpoint,
@@ -25,12 +26,17 @@ import {
   ResponseLog,
   ResponseCodeLogs,
 } from "./types";
-import { getRoleFromPath, parseOpenApi, universalFetch } from "./utils";
+import { getRoleFromPath, parseOpenApi } from "./utils";
 import RoleConfigurationManager from "./components/RoleConfigurationManager";
 import EndpointList from "./components/EndpointList";
 import ProxyRequestForm from "./components/ProxyRequestForm";
 import ResponseCodeHistory from "./components/ResponseCodeHistory";
 import AutoRunnerPanel from "./components/AutoRunnerPanel";
+import { getWorkspaceHandle, saveWorkspaceHandle, clearWorkspaceHandle, verifyWorkspacePermission } from "./lib/WorkspaceDB";
+import { readWorkspaceConfig, writeWorkspaceConfig, readWorkspaceResponses, writeWorkspaceResponse, clearWorkspaceResponses } from "./lib/WorkspaceIO";
+
+// Update ROLES based on request
+export const ROLES = ["admin", "seller", "store", "public", "webhook"];
 
 // Static fallback specs harvested from QianPulsa OpenAPI JSON to ensure instant availability
 const FALLBACK_SPEC = {
@@ -293,53 +299,100 @@ export default function App() {
   // Sidebar Open State (for Mobile Navigation overlay)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // Workspace integration states
+  const [workspace, setWorkspace] = useState<FileSystemDirectoryHandle | null>(null);
+  const [initMode, setInitMode] = useState<"loading" | "setup" | "resume" | "ready">("loading");
+
   // Tabbed layout state for workspace right panel: sandbox (forms + history), config (credentials manager), runner (mass serial test)
   const [workspaceTab, setWorkspaceTab] = useState<
     "sandbox" | "config" | "runner" | "metrics"
   >("metrics");
   const [configTabRole, setConfigTabRole] = useState<
-    "admin" | "seller" | "store"
+    "admin" | "seller" | "store" | "public" | "webhook"
   >("admin");
 
-  // Config setup & history load on mount
   useEffect(() => {
-    // 1. Initialise roles configs from storage or defaults
-    const roles = ["admin", "seller", "store", "other"];
-    const initialConfigs: Record<string, RoleConfig> = {};
-
-    roles.forEach((role) => {
-      const saved = localStorage.getItem(`qian_role_config_v2_${role}`);
-      if (saved) {
-        try {
-          initialConfigs[role] = JSON.parse(saved);
-        } catch (e) {
-          initialConfigs[role] = createDefaultRoleConfig(role);
-        }
-      } else {
-        initialConfigs[role] = createDefaultRoleConfig(role);
-      }
-    });
-    setRoleConfigs(initialConfigs);
-
-    // 2. Fetch API specifications from server proxy
-    fetchApiSpecification();
-
-    // 3. Load Response Snapshot History
-    const savedHistory = localStorage.getItem("qian_response_history");
-    if (savedHistory) {
+    (async () => {
       try {
-        setResponseHistory(JSON.parse(savedHistory));
-      } catch (e) {
-        console.error("Failed to parse saved response history", e);
+        const stored = await getWorkspaceHandle();
+        if (stored) {
+          setWorkspace(stored);
+          setInitMode("resume");
+        } else {
+          setInitMode("setup");
+        }
+      } catch (err) {
+        setInitMode("setup");
       }
-    }
-
-    // 4. Load selected role filter Preference
-    const savedFilter = localStorage.getItem("qian_active_role_filter");
-    if (savedFilter) {
-      setActiveRoleFilter(savedFilter);
-    }
+    })();
   }, []);
+
+  const connectNewWorkspace = async () => {
+    try {
+      // @ts-ignore
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      await saveWorkspaceHandle(handle);
+      setWorkspace(handle);
+      await loadWorkspaceData(handle);
+    } catch (e) {
+      console.log("User cancelled folder picker");
+    }
+  };
+
+  const resumeWorkspace = async () => {
+    if (!workspace) return;
+    try {
+      if (await verifyWorkspacePermission(workspace)) {
+        await loadWorkspaceData(workspace);
+      } else {
+        alert("Gagal mengaktifkan folder. Silakan pilih folder ulang.");
+        setInitMode("setup");
+      }
+    } catch (e) {
+      alert("Gagal mengaktifkan folder. Silakan pilih folder ulang.");
+      setInitMode("setup");
+    }
+  };
+
+  const disconnectWorkspace = async () => {
+    if (window.confirm("Hapus sesi workspace saat ini? Anda harus memilih folder lagi nanti.")) {
+      await clearWorkspaceHandle();
+      window.location.reload();
+    }
+  };
+
+  const loadWorkspaceData = async (handle: FileSystemDirectoryHandle) => {
+    setInitMode("loading");
+    
+    // Default config init
+    const initialConfigs: Record<string, RoleConfig> = {};
+    ROLES.forEach((role) => {
+      initialConfigs[role] = createDefaultRoleConfig(role);
+    });
+
+    try {
+      const customConfig = await readWorkspaceConfig(handle);
+      if (customConfig?.roleConfigs) {
+        Object.keys(customConfig.roleConfigs).forEach(role => {
+          initialConfigs[role] = customConfig.roleConfigs[role];
+        });
+      }
+      
+      const customResps = await readWorkspaceResponses(handle);
+      setResponseHistory(customResps);
+      
+      const savedFilter = customConfig?.inputsStore?.["qian_active_role_filter"];
+      if (savedFilter) {
+        setActiveRoleFilter(savedFilter);
+      }
+    } catch (err) {
+      console.error("Failed to load workspace data", err);
+    }
+    
+    setRoleConfigs(initialConfigs);
+    await fetchApiSpecification();
+    setInitMode("ready");
+  };
 
   const createDefaultRoleConfig = (role: string): RoleConfig => {
     return {
@@ -419,13 +472,16 @@ export default function App() {
     }
   };
 
-  const handleRoleConfigChange = (updated: RoleConfig) => {
+  const handleRoleConfigChange = async (updated: RoleConfig) => {
     const nextConfigs = { ...roleConfigs, [updated.role]: updated };
     setRoleConfigs(nextConfigs);
-    localStorage.setItem(
-      `qian_role_config_v2_${updated.role}`,
-      JSON.stringify(updated),
-    );
+    
+    if (workspace) {
+      await writeWorkspaceConfig(workspace, {
+        roleConfigs: nextConfigs,
+        inputsStore: { qian_active_role_filter: activeRoleFilter }
+      });
+    }
   };
 
   const handleResetRoleConfig = (role: string) => {
@@ -447,9 +503,14 @@ export default function App() {
     roleConfigs[currentRoleForSelected] || createDefaultRoleConfig("other");
 
   // Sync role filter change with tab selection helper
-  const handleRoleFilterChange = (role: string) => {
+  const handleRoleFilterChange = async (role: string) => {
     setActiveRoleFilter(role);
-    localStorage.setItem("qian_active_role_filter", role);
+    if (workspace) {
+      await writeWorkspaceConfig(workspace, {
+        roleConfigs,
+        inputsStore: { qian_active_role_filter: role }
+      });
+    }
   };
 
   // Perform Simulated Proxy Request
@@ -465,7 +526,101 @@ export default function App() {
       : "custom";
 
     try {
-      const responsePayload = await universalFetch(reqData);
+      let responsePayload;
+
+      // Check if we are running in a static web view, github pages, or fallback mode
+      const isStaticOrWebView =
+        isUsingFallback ||
+        window.location.protocol === "file:" ||
+        window.location.hostname.includes("github.io") ||
+        window.location.hostname.includes("vercel.app") ||
+        window.location.hostname.includes("github");
+
+      if (isStaticOrWebView) {
+        // Direct browser/webview client-side fetch (perfect for Android WebView where CORS is bypassed or API allows CORS)
+        const startTime = Date.now();
+        const fetchOptions: RequestInit = {
+          method: reqData.method,
+          headers: reqData.headers,
+        };
+
+        if (
+          reqData.body &&
+          ["POST", "PUT", "PATCH", "DELETE"].includes(
+            reqData.method.toUpperCase(),
+          )
+        ) {
+          fetchOptions.body =
+            typeof reqData.body === "string"
+              ? reqData.body
+              : JSON.stringify(reqData.body);
+        }
+
+        try {
+          const response = await fetch(reqData.url, fetchOptions);
+          const duration = Date.now() - startTime;
+
+          let responseBodyText = "";
+          try {
+            responseBodyText = await response.text();
+          } catch (e) {
+            // ignore
+          }
+
+          let parsedBody: any = null;
+          try {
+            parsedBody = JSON.parse(responseBodyText);
+          } catch (e) {
+            parsedBody = responseBodyText;
+          }
+
+          const responseHeaders: Record<string, string> = {};
+          response.headers.forEach((val, key) => {
+            responseHeaders[key] = val;
+          });
+
+          responsePayload = {
+            status: response.status,
+            statusText: response.statusText,
+            durationMs: duration,
+            headers: responseHeaders,
+            body: parsedBody,
+          };
+        } catch (fetchErr: any) {
+          // If direct call fails (e.g. CORS block on local browser tests), try to delegate to server api proxy as fallback just in case
+          console.warn(
+            "Direct fetch failed, trying express proxy fallback...",
+            fetchErr,
+          );
+          const resp = await fetch("/api/proxy-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: reqData.url,
+              method: reqData.method,
+              headers: reqData.headers,
+              body: reqData.body,
+            }),
+          });
+          responsePayload = await resp.json();
+        }
+      } else {
+        // Standard Express backend proxy path
+        const resp = await fetch("/api/proxy-request", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: reqData.url,
+            method: reqData.method,
+            headers: reqData.headers,
+            body: reqData.body,
+          }),
+        });
+
+        responsePayload = await resp.json();
+      }
 
       // Construct Response Log Object
       const logRecord: ResponseLog = {
@@ -492,10 +647,14 @@ export default function App() {
       nextHistory[endpointKey][responsePayload.status] = logRecord;
 
       setResponseHistory(nextHistory);
-      localStorage.setItem(
-        "qian_response_history",
-        JSON.stringify(nextHistory),
-      );
+      if (workspace && selectedEndpoint) {
+        await writeWorkspaceResponse(
+          workspace, 
+          getRoleFromPath(selectedEndpoint.path), 
+          endpointKey, 
+          logRecord
+        );
+      }
 
       // Auto-extract token and save to credentials if requested
       if (
@@ -530,11 +689,15 @@ export default function App() {
                 Authorization: `Bearer ${tokenFound}`,
               },
             };
-            setRoleConfigs((prev) => ({ ...prev, [activeRole]: updatedCfg }));
-            localStorage.setItem(
-              `qian_role_config_v2_${activeRole}`,
-              JSON.stringify(updatedCfg),
-            );
+            const nextRoles = { ...roleConfigs, [activeRole]: updatedCfg };
+            setRoleConfigs(nextRoles);
+            
+            if (workspace) {
+              await writeWorkspaceConfig(workspace, {
+                roleConfigs: nextRoles,
+                inputsStore: { qian_active_role_filter: activeRoleFilter }
+              });
+            }
           }
         }
       }
@@ -566,16 +729,21 @@ export default function App() {
       }
       nextHistory[endpointKey][600] = errorRecord;
       setResponseHistory(nextHistory);
-      localStorage.setItem(
-        "qian_response_history",
-        JSON.stringify(nextHistory),
-      );
+      
+      if (workspace && selectedEndpoint) {
+        await writeWorkspaceResponse(
+          workspace, 
+          getRoleFromPath(selectedEndpoint.path), 
+          endpointKey, 
+          errorRecord
+        );
+      }
     } finally {
       setIsExecutingRequest(false);
     }
   };
 
-  const handleClearLogsForEndpoint = () => {
+  const handleClearLogsForEndpoint = async () => {
     if (!selectedEndpoint) return;
     const endpointKey = `${selectedEndpoint.method}:${selectedEndpoint.path}`;
     if (
@@ -586,12 +754,67 @@ export default function App() {
       const nextHistory = { ...responseHistory };
       delete nextHistory[endpointKey];
       setResponseHistory(nextHistory);
-      localStorage.setItem(
-        "qian_response_history",
-        JSON.stringify(nextHistory),
-      );
+      
+      if (workspace) {
+        await clearWorkspaceResponses(
+          workspace,
+          getRoleFromPath(selectedEndpoint.path),
+          endpointKey
+        );
+      }
     }
   };
+
+  if (initMode !== "ready") {
+    return (
+      <div className="min-h-screen bg-brand-bg text-slate-300 flex flex-col font-sans">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          {initMode === "setup" && (
+            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-2xl p-8 shadow-2xl">
+              <FolderOpen className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
+              <h1 className="text-2xl font-bold text-white mb-2">QianPulsa Tester</h1>
+              <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                Hubungkan folder lokal perangkat Anda untuk mulai menyimpan data log konfigurasi secara permanen dan aman.
+              </p>
+              <button
+                onClick={connectNewWorkspace}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-indigo-600/20"
+              >
+                Pilih Folder Workspace
+              </button>
+            </div>
+          )}
+          {initMode === "resume" && (
+            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-2xl p-8 shadow-2xl">
+              <FolderOpen className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
+              <h1 className="text-2xl font-bold text-white mb-2">Selamat Datang Kembali</h1>
+              <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+                Aplikasi mengingat workspace terakhir. Klik untuk mengaktifkan kembali akses.
+              </p>
+              <button
+                onClick={resumeWorkspace}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-indigo-600/20 mb-4"
+              >
+                Aktifkan Workspace
+              </button>
+              <button
+                onClick={connectNewWorkspace}
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+              >
+                Gunakan Folder Lain
+              </button>
+            </div>
+          )}
+          {initMode === "loading" && (
+            <div className="flex flex-col items-center justify-center p-12">
+              <RefreshCw className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+              <p className="text-sm font-semibold text-slate-300 animate-pulse">Menghubungkan ke folder...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const activeLogsForSelected = selectedEndpoint
     ? responseHistory[`${selectedEndpoint.method}:${selectedEndpoint.path}`] ||
@@ -658,6 +881,14 @@ export default function App() {
               <RefreshCw
                 className={`w-3.5 h-3.5 ${isLoadingSpec ? "animate-spin" : ""}`}
               />
+            </button>
+            <button
+              id="btn-disconnect"
+              onClick={disconnectWorkspace}
+              className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-xs font-bold transition shrink-0 cursor-pointer"
+              title="Keluar dari Workspace"
+            >
+              Keluar Workspace
             </button>
           </div>
         </div>
@@ -849,111 +1080,18 @@ export default function App() {
                     <div className="mt-8 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-lg flex flex-col sm:flex-row gap-4 items-center justify-between">
                       <div>
                         <h4 className="text-sm font-semibold text-indigo-300 mb-2">
-                          Export & Import Data Cadangan
+                          Penyimpanan Lokal Aktif (Workspace)
                         </h4>
                         <p className="text-xs text-slate-400 max-w-2xl">
-                          Aplikasi saat ini menyimpan semua progres Anda
-                          (konfigurasi role, history response code, parameter
-                          input) ke dalam Local Storage browser Anda. Untuk
-                          mencadangkannya secara permanen agar tidak hilang
-                          ketika local storage terhapus, Anda dapat meng-export
-                          data ke dalam file JSON secara mandiri.
+                          Seluruh data konfigurasi role, logs repons otomatis, dan cache input Anda akan tersimpan di dalam folder <strong>{workspace?.name}</strong>. Anda tidak perlu repot menyalin JSON secara manual. Sistem bertindak seperti IDE lokal.
                         </p>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-                        <label className="bg-brand-sidebar hover:bg-slate-800 text-slate-300 border border-slate-700 hover:text-white text-xs font-semibold py-2 px-4 rounded transition cursor-pointer text-center">
-                          Import JSON
-                          <input
-                            type="file"
-                            accept=".json"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                try {
-                                  const backup = JSON.parse(
-                                    event.target?.result as string,
-                                  );
-                                  if (backup.roleConfigs) {
-                                    Object.keys(backup.roleConfigs).forEach(
-                                      (role) => {
-                                        localStorage.setItem(
-                                          `qian_role_config_v2_${role}`,
-                                          JSON.stringify(
-                                            backup.roleConfigs[role],
-                                          ),
-                                        );
-                                      },
-                                    );
-                                    setRoleConfigs(backup.roleConfigs);
-                                  }
-                                  if (backup.responseHistory) {
-                                    localStorage.setItem(
-                                      "qian_response_history",
-                                      JSON.stringify(backup.responseHistory),
-                                    );
-                                    setResponseHistory(backup.responseHistory);
-                                  }
-                                  if (backup.inputsStore) {
-                                    Object.keys(backup.inputsStore).forEach(
-                                      (key) => {
-                                        localStorage.setItem(
-                                          key,
-                                          JSON.stringify(
-                                            backup.inputsStore[key],
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  }
-                                  alert(
-                                    "Data berhasil di-import! Halaman tidak perlu dimuat ulang.",
-                                  );
-                                } catch (err) {
-                                  alert("Format file tidak valid.");
-                                }
-                              };
-                              reader.readAsText(file);
-                            }}
-                          />
-                        </label>
                         <button
-                          onClick={() => {
-                            const inputsStore: Record<string, any> = {};
-                            for (let i = 0; i < localStorage.length; i++) {
-                              const key = localStorage.key(i);
-                              if (key && key.startsWith("qian_saved_inputs_")) {
-                                try {
-                                  inputsStore[key] = JSON.parse(
-                                    localStorage.getItem(key) || "{}",
-                                  );
-                                } catch (e) {}
-                              }
-                            }
-                            const backup = {
-                              roleConfigs,
-                              responseHistory,
-                              activeRoleFilter,
-                              inputsStore,
-                            };
-                            const blob = new Blob(
-                              [JSON.stringify(backup, null, 2)],
-                              { type: "application/json" },
-                            );
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `qian_simulator_backup_${new Date().toISOString().slice(0, 10)}.json`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                          }}
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-4 rounded transition"
+                          onClick={disconnectWorkspace}
+                          className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-semibold py-2 px-4 rounded transition"
                         >
-                          Export JSON
+                          Keluar Workspace
                         </button>
                       </div>
                     </div>
@@ -1034,8 +1172,8 @@ export default function App() {
                       Atur URL dasar (Base URL) dan Header default (misalnya
                       authorization Token Bearer) untuk masing-masing role.
                     </p>
-                    <div className="flex gap-2">
-                      {["admin", "seller", "store"].map((role) => (
+                    <div className="flex gap-2 flex-wrap">
+                      {ROLES.map((role) => (
                         <button
                           key={role}
                           onClick={() => setConfigTabRole(role as any)}
@@ -1052,13 +1190,8 @@ export default function App() {
                   </div>
                   <RoleConfigurationManager
                     currentRole={configTabRole}
-                    config={roleConfigs[configTabRole] || roleConfigs["admin"]}
-                    onConfigChange={(newCfg) =>
-                      setRoleConfigs((prev) => ({
-                        ...prev,
-                        [configTabRole]: newCfg,
-                      }))
-                    }
+                    config={roleConfigs[configTabRole] || createDefaultRoleConfig(configTabRole)}
+                    onConfigChange={handleRoleConfigChange}
                     onReset={() => handleResetRoleConfig(configTabRole)}
                   />
                 </div>
@@ -1069,13 +1202,16 @@ export default function App() {
                   endpoints={endpoints}
                   roleConfigs={roleConfigs}
                   responseHistory={responseHistory}
-                  onUpdateHistory={(updatedHistory) => {
+                  onUpdateHistory={async (updatedHistory) => {
                     setResponseHistory(updatedHistory);
-                    localStorage.setItem(
-                      "qian_response_history",
-                      JSON.stringify(updatedHistory),
-                    );
+                    // Workspace saves individual objects as they complete in the proxy runner. We don't overwrite all here for safety.
                   }}
+                  onSaveResponse={async (role: string, endpointKey: string, log: ResponseLog) => {
+                    if (workspace) {
+                      await writeWorkspaceResponse(workspace, role, endpointKey, log);
+                    }
+                  }}
+                  isUsingFallback={isUsingFallback}
                   onSelectEndpoint={(ep) => setSelectedEndpoint(ep)}
                   onStartBulkRun={() => setWorkspaceTab("sandbox")}
                 />

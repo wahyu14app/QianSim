@@ -4,15 +4,17 @@ import {
   Settings, ChevronRight, Activity, Layers, CheckCircle, Database 
 } from "lucide-react";
 import { ApiEndpoint, RoleConfig, ResponseCodeLogs, ResponseLog } from "../types";
-import { getRoleFromPath, generateMockBody, universalFetch } from "../utils";
+import { getRoleFromPath, generateMockBody } from "../utils";
 
 interface AutoRunnerPanelProps {
   endpoints: ApiEndpoint[];
   roleConfigs: Record<string, RoleConfig>;
   responseHistory: ResponseCodeLogs;
   onUpdateHistory: (updatedHistory: ResponseCodeLogs) => void;
+  isUsingFallback: boolean;
   onSelectEndpoint: (ep: ApiEndpoint) => void;
   onStartBulkRun?: () => void;
+  onSaveResponse?: (role: string, endpointKey: string, log: ResponseLog) => Promise<void>;
 }
 
 interface RunStatus {
@@ -31,14 +33,20 @@ export default function AutoRunnerPanel({
   roleConfigs,
   responseHistory,
   onUpdateHistory,
+  isUsingFallback,
   onSelectEndpoint,
-  onStartBulkRun
+  onStartBulkRun,
+  onSaveResponse
 }: AutoRunnerPanelProps) {
-  // Memoize non-auth endpoints to keep the auto runner board clean and prevent resetting active auth tokens
+  // Memoize non-auth and non-webhook endpoints to keep the auto runner board clean
   const activeEndpoints = React.useMemo(() => {
     return endpoints.filter((ep) => {
       const p = ep.path.toLowerCase();
-      return !p.includes("/auth/") && !p.includes("/login") && !p.includes("/register") && !p.includes("/otp");
+      return !p.includes("/auth/") && 
+             !p.includes("/login") && 
+             !p.includes("/register") && 
+             !p.includes("/otp") &&
+             !p.includes("webhook");
     });
   }, [endpoints]);
 
@@ -356,6 +364,7 @@ export default function AutoRunnerPanel({
           [400]: errorRecord
         };
         onUpdateHistory({ ...accumulatedHistory });
+        if (onSaveResponse) await onSaveResponse(getRoleFromPath(ep.path), endpointKey, errorRecord);
 
         setIsRunning(false); // Berhentikan eksekusi
         break; // Auto runner berhenti total
@@ -363,7 +372,71 @@ export default function AutoRunnerPanel({
 
       // Perform simulation fetch matching normal execution
       try {
-        const responsePayload = await universalFetch(reqData);
+        let responsePayload;
+
+        const isStaticOrWebView = isUsingFallback || 
+                                  window.location.protocol === "file:" || 
+                                  window.location.hostname.includes("github.io") || 
+                                  window.location.hostname.includes("vercel.app") ||
+                                  window.location.hostname.includes("github");
+
+        if (isStaticOrWebView) {
+          const startTime = Date.now();
+          const fetchOptions: RequestInit = {
+            method: reqData.method,
+            headers: reqData.headers,
+          };
+          if (reqData.body && ["POST", "PUT", "PATCH", "DELETE"].includes(reqData.method.toUpperCase())) {
+            fetchOptions.body = typeof reqData.body === "string" ? reqData.body : JSON.stringify(reqData.body);
+          }
+
+          try {
+            const response = await fetch(reqData.url, fetchOptions);
+            const duration = Date.now() - startTime;
+            
+            let responseBodyText = "";
+            try { responseBodyText = await response.text(); } catch (e) {}
+
+            let parsedBody: any = null;
+            try { parsedBody = JSON.parse(responseBodyText); } catch (e) { parsedBody = responseBodyText; }
+
+            const resHeaders: Record<string, string> = {};
+            response.headers.forEach((v, k) => { resHeaders[k] = v; });
+
+            responsePayload = {
+              status: response.status,
+              statusText: response.statusText,
+              durationMs: duration,
+              headers: resHeaders,
+              body: parsedBody
+            };
+          } catch (directErr) {
+            // express proxy fallback
+            const resp = await fetch("/api/proxy-request", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                url: reqData.url,
+                method: reqData.method,
+                headers: reqData.headers,
+                body: reqData.body,
+              }),
+            });
+            responsePayload = await resp.json();
+          }
+        } else {
+          const resp = await fetch("/api/proxy-request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: reqData.url,
+              method: reqData.method,
+              headers: reqData.headers,
+              body: reqData.body,
+            }),
+          });
+          responsePayload = await resp.json();
+        }
 
         // Construct high fidelity log
         const logRecord: ResponseLog = {
@@ -388,6 +461,7 @@ export default function AutoRunnerPanel({
           [responsePayload.status]: logRecord
         };
         onUpdateHistory({ ...accumulatedHistory });
+        if (onSaveResponse) await onSaveResponse(getRoleFromPath(ep.path), endpointKey, logRecord);
 
         // Update local list state
         updatedStatuses[statusIdx].status = responsePayload.status >= 200 && responsePayload.status < 400 ? "success" : "error";
@@ -418,6 +492,7 @@ export default function AutoRunnerPanel({
           [600]: errorRecord
         };
         onUpdateHistory({ ...accumulatedHistory });
+        if (onSaveResponse) await onSaveResponse(getRoleFromPath(ep.path), endpointKey, errorRecord);
 
         updatedStatuses[statusIdx].status = "error";
         updatedStatuses[statusIdx].statusCode = 600;
