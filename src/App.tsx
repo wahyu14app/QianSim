@@ -39,239 +39,8 @@ import { readWorkspaceConfig, writeWorkspaceConfig, readWorkspaceResponses, writ
 export const ROLES = ["admin", "seller", "store", "public", "webhook"];
 
 // Static fallback specs harvested from QianPulsa OpenAPI JSON to ensure instant availability
-const FALLBACK_SPEC = {
-  paths: {
-    "/api/v1/admin/auth/login": {
-      post: {
-        summary: "Admin Login",
-        tags: ["Admin Auth"],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string", format: "email" },
-                  password: { type: "string", minLength: 1 },
-                  otpCode: { type: "string" },
-                },
-                required: ["email", "password"],
-              },
-            },
-          },
-        },
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/admin/auth/me": {
-      get: {
-        summary: "Dapatkan Profil Admin",
-        tags: ["Admin Auth"],
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/admin/catalog/products": {
-      get: {
-        summary: "Dapatkan Produk Katalog",
-        tags: ["Admin Catalog"],
-        parameters: [
-          {
-            name: "skip",
-            in: "query",
-            schema: { type: "string", default: "0" },
-          },
-          {
-            name: "take",
-            in: "query",
-            schema: { type: "string", default: "50" },
-          },
-        ],
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-      post: {
-        summary: "Buat Produk Baru",
-        tags: ["Admin Catalog"],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  brandId: { type: "string", format: "uuid" },
-                  categoryId: { type: "string", format: "uuid" },
-                  productCode: { type: "string", minLength: 1 },
-                  name: { type: "string", minLength: 1 },
-                  basePrice: { type: "number", minimum: 0 },
-                  isAvailable: { type: "boolean" },
-                },
-                required: [
-                  "brandId",
-                  "categoryId",
-                  "productCode",
-                  "name",
-                  "basePrice",
-                ],
-              },
-            },
-          },
-        },
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/seller/auth/login": {
-      post: {
-        summary: "Login Seller",
-        tags: ["Seller Auth"],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  email: { type: "string", format: "email" },
-                  password: { type: "string", minLength: 1 },
-                  otpCode: { type: "string" },
-                },
-                required: ["email", "password"],
-              },
-            },
-          },
-        },
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/seller/stores": {
-      get: {
-        summary: "Get My Stores",
-        tags: ["Seller Stores"],
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-      post: {
-        summary: "Create Store",
-        tags: ["Seller Stores"],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  name: { type: "string", minLength: 3 },
-                  slug: { type: "string", minLength: 3 },
-                  domain: { type: "string" },
-                },
-                required: ["name", "slug"],
-              },
-            },
-          },
-        },
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/seller/billing/deposit": {
-      post: {
-        summary: "Create Deposit Request",
-        tags: ["Seller Billing"],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  amount: { type: "number", minimum: 10000 },
-                },
-                required: ["amount"],
-              },
-            },
-          },
-        },
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/store/profile": {
-      get: {
-        summary: "Cek Profil Toko & Saldo",
-        tags: ["Store Profile"],
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/store/catalog": {
-      get: {
-        summary: "Ambil Katalog Produk Toko",
-        tags: ["Store Catalog"],
-        parameters: [
-          {
-            name: "skip",
-            in: "query",
-            schema: { type: "string", default: "0" },
-          },
-          {
-            name: "take",
-            in: "query",
-            schema: { type: "string", default: "20" },
-          },
-        ],
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/store/transactions/checkout": {
-      post: {
-        summary: "Kirim Transaksi Topup (Checkout)",
-        tags: ["Store Transactions"],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                properties: {
-                  productCode: { type: "string", minLength: 1 },
-                  targetNumber: { type: "string", minLength: 10 },
-                  externalId: { type: "string", minLength: 1 },
-                },
-                required: ["productCode", "targetNumber", "externalId"],
-              },
-            },
-          },
-        },
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-    "/api/v1/store/transactions/{id}": {
-      get: {
-        summary: "Detail Transaksi Outlet",
-        tags: ["Store Transactions"],
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            schema: { type: "string" },
-            description: "ID transaksi unik",
-          },
-        ],
-        security: [{ bearerAuth: [] }],
-        responses: { "200": { description: "Default Response" } },
-      },
-    },
-  },
-};
-
-const DEFAULT_JWT_ADMIN = "Bearer admin-dummy-token";
-const DEFAULT_JWT_SELLER = "Bearer seller-dummy-token";
+const DEFAULT_JWT_ADMIN = "";
+const DEFAULT_JWT_SELLER = "";
 
 export default function App() {
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -301,7 +70,7 @@ export default function App() {
 
   // Workspace integration states
   const [workspace, setWorkspace] = useState<FileSystemDirectoryHandle | null>(null);
-  const [initMode, setInitMode] = useState<"loading" | "setup" | "resume" | "ready">("loading");
+  const [initMode, setInitMode] = useState<"loading" | "setup" | "resume" | "ready" | "setup_swagger">("loading");
 
   // Tabbed layout state for workspace right panel: sandbox (forms + history), config (credentials manager), runner (mass serial test)
   const [workspaceTab, setWorkspaceTab] = useState<
@@ -310,6 +79,8 @@ export default function App() {
   const [configTabRole, setConfigTabRole] = useState<
     "admin" | "seller" | "store" | "public" | "webhook"
   >("admin");
+
+  const [setupSwaggerUrl, setSetupSwaggerUrl] = useState("https://qianpulsa-coreapi-v1.onrender.com/docs/json");
 
   useEffect(() => {
     (async () => {
@@ -370,12 +141,17 @@ export default function App() {
       initialConfigs[role] = createDefaultRoleConfig(role);
     });
 
+    let configSwaggerUrl = "";
+
     try {
       const customConfig = await readWorkspaceConfig(handle);
       if (customConfig?.roleConfigs) {
         Object.keys(customConfig.roleConfigs).forEach(role => {
           initialConfigs[role] = customConfig.roleConfigs[role];
         });
+      }
+      if (customConfig?.swaggerUrl) {
+          configSwaggerUrl = customConfig.swaggerUrl;
       }
       
       const customResps = await readWorkspaceResponses(handle);
@@ -390,8 +166,64 @@ export default function App() {
     }
     
     setRoleConfigs(initialConfigs);
-    await fetchApiSpecification();
-    setInitMode("ready");
+    
+    if (!configSwaggerUrl) {
+        setInitMode("setup_swagger");
+        return;
+    }
+
+    await loadSwaggerData(configSwaggerUrl, handle);
+  };
+
+  const loadSwaggerData = async (swaggerUrl: string, handle: FileSystemDirectoryHandle, forceReload = false) => {
+      setIsLoadingSpec(true);
+      setSpecError(null);
+      
+      if (!forceReload) {
+          const cachedApis = await import("./lib/WorkspaceIO").then(m => m.readParsedApis(handle));
+          if (cachedApis && cachedApis.length > 0) {
+              setEndpoints(cachedApis);
+              setIsUsingFallback(false);
+              const firstRoleEp =
+                cachedApis.find((ep) => getRoleFromPath(ep.path) === "admin") ||
+                cachedApis[0];
+              setSelectedEndpoint(firstRoleEp);
+              setIsLoadingSpec(false);
+              setInitMode("ready");
+              return;
+          }
+      }
+
+      try {
+        const directResp = await fetch(swaggerUrl);
+        if (!directResp.ok) throw new Error("Status " + directResp.status);
+        const data = await directResp.json();
+        
+        const parsedEp = parseOpenApi(data);
+        if (parsedEp.length === 0) {
+          throw new Error("Parsed zero endpoints from JSON.");
+        }
+        
+        await import("./lib/WorkspaceIO").then(m => m.writeParsedApis(handle, parsedEp));
+        
+        setEndpoints(parsedEp);
+        setIsUsingFallback(false);
+        const firstRoleEp =
+          parsedEp.find((ep) => getRoleFromPath(ep.path) === "admin") ||
+          parsedEp[0];
+        setSelectedEndpoint(firstRoleEp);
+        setInitMode("ready");
+      } catch (err: any) {
+        console.error(err);
+        setSpecError("Gagal memuat URL Swagger. " + err.message);
+        if (initMode === "setup_swagger") {
+            // keep it in setup mode
+        } else {
+            setInitMode("setup_swagger"); // fallback to let them change it
+        }
+      } finally {
+        setIsLoadingSpec(false);
+      }
   };
 
   const createDefaultRoleConfig = (role: string): RoleConfig => {
@@ -422,54 +254,14 @@ export default function App() {
   };
 
   const fetchApiSpecification = async () => {
-    setIsLoadingSpec(true);
-    setSpecError(null);
-    try {
-      let data;
-      try {
-        // Try direct remote fetch first (great for WebViews and standard CORS-enabled clients)
-        const directResp = await fetch(
-          "https://qianpulsa-coreapi-v1.onrender.com/docs/json",
-        );
-        if (!directResp.ok) throw new Error("Status " + directResp.status);
-        data = await directResp.json();
-      } catch (directErr) {
-        console.warn(
-          "Direct remote spec fetch failed, trying local proxy `/api/proxy-spec`...",
-          directErr,
-        );
-        const resp = await fetch("/api/proxy-spec");
-        if (!resp.ok) {
-          throw new Error(`Proxy error: ${resp.statusText}`);
-        }
-        data = await resp.json();
-      }
-
-      const parsedEp = parseOpenApi(data);
-      if (parsedEp.length === 0) {
-        throw new Error("Parsed zero endpoints from JSON.");
-      }
-      setEndpoints(parsedEp);
-      setIsUsingFallback(false);
-      // Select first endpoint
-      if (parsedEp.length > 0) {
-        setSelectedEndpoint(parsedEp[0]);
-      }
-    } catch (err: any) {
-      console.warn(
-        "Failed to fetch server spec, activating offline fallback...",
-        err,
-      );
-      const parsedEp = parseOpenApi(FALLBACK_SPEC);
-      setEndpoints(parsedEp);
-      setIsUsingFallback(true);
-      setSpecError(err.message || "Failed to contact proxy.");
-      if (parsedEp.length > 0) {
-        setSelectedEndpoint(parsedEp[0]);
-      }
-    } finally {
-      setIsLoadingSpec(false);
-    }
+     if (workspace) {
+         const config = await readWorkspaceConfig(workspace);
+         if (config && config.swaggerUrl) {
+             await loadSwaggerData(config.swaggerUrl, workspace, true);
+         } else {
+             setInitMode("setup_swagger");
+         }
+     }
   };
 
   const handleRoleConfigChange = async (updated: RoleConfig) => {
@@ -808,7 +600,52 @@ export default function App() {
           {initMode === "loading" && (
             <div className="flex flex-col items-center justify-center p-12">
               <RefreshCw className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-              <p className="text-sm font-semibold text-slate-300 animate-pulse">Menghubungkan ke folder...</p>
+              <p className="text-sm font-semibold text-slate-300 animate-pulse">Memproses...</p>
+            </div>
+          )}
+          {initMode === "setup_swagger" && (
+            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-2xl p-8 shadow-2xl text-left">
+              <h1 className="text-xl font-bold text-white mb-2">Konfigurasi API</h1>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+                Tentukan endpoint Swagger (format JSON) untuk memuat skema API ke dalam workspace Anda.
+              </p>
+              
+              <div className="mb-6">
+                <label className="block text-xs font-semibold text-slate-400 mb-2">Swagger JSON URL</label>
+                <input
+                    type="url"
+                    value={setupSwaggerUrl}
+                    onChange={e => setSetupSwaggerUrl(e.target.value)}
+                    className="w-full bg-brand-input border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="https://example.onrender.com/docs/json"
+                />
+              </div>
+
+              {specError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded">
+                  {specError}
+                </div>
+              )}
+
+              <button
+                onClick={async () => {
+                   if (!workspace) return;
+                   
+                   // Save url immediately
+                   await writeWorkspaceConfig(workspace, { 
+                       swaggerUrl: setupSwaggerUrl, 
+                       roleConfigs, 
+                       inputsStore: { qian_active_role_filter: activeRoleFilter } 
+                   });
+                   
+                   await loadSwaggerData(setupSwaggerUrl, workspace, true);
+                }}
+                disabled={!setupSwaggerUrl || isLoadingSpec}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isLoadingSpec && <RefreshCw className="w-4 h-4 animate-spin" />}
+                Tarik Schema & Lanjutkan
+              </button>
             </div>
           )}
         </div>

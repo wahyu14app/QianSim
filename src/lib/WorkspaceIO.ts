@@ -1,6 +1,7 @@
 import { RoleConfig, ResponseLog, ResponseCodeLogs } from "../types";
 
 export const readWorkspaceConfig = async (ws: FileSystemDirectoryHandle): Promise<{
+    swaggerUrl?: string,
     roleConfigs: Record<string, RoleConfig>,
     inputsStore: Record<string, any>
 } | null> => {
@@ -16,7 +17,7 @@ export const readWorkspaceConfig = async (ws: FileSystemDirectoryHandle): Promis
 
 export const writeWorkspaceConfig = async (
     ws: FileSystemDirectoryHandle, 
-    data: { roleConfigs: Record<string, RoleConfig>, inputsStore: Record<string, any> }
+    data: { swaggerUrl?: string, roleConfigs: Record<string, RoleConfig>, inputsStore: Record<string, any> }
 ) => {
   try {
     const fileHandle = await ws.getFileHandle("config.json", { create: true });
@@ -26,6 +27,51 @@ export const writeWorkspaceConfig = async (
     await writable.close();
   } catch (e) {
     console.error("Failed to write config.json", e);
+  }
+};
+
+import { ApiEndpoint } from "../types";
+import { getRoleFromPath } from "../utils";
+
+export const writeParsedApis = async (ws: FileSystemDirectoryHandle, endpoints: ApiEndpoint[]) => {
+  try {
+    const parsedDir = await ws.getDirectoryHandle("parsed_api", { create: true });
+    const grouped: Record<string, ApiEndpoint[]> = {};
+    
+    endpoints.forEach(ep => {
+      const role = getRoleFromPath(ep.path);
+      if (!grouped[role]) grouped[role] = [];
+      grouped[role].push(ep);
+    });
+
+    for (const [role, eps] of Object.entries(grouped)) {
+      const fileHandle = await parsedDir.getFileHandle(`${role}.json`, { create: true });
+      // @ts-ignore
+      const writable = await fileHandle.createWritable();
+      await writable.write(JSON.stringify(eps, null, 2));
+      await writable.close();
+    }
+  } catch (e) {
+    console.error("Failed to write parsed apis", e);
+  }
+};
+
+export const readParsedApis = async (ws: FileSystemDirectoryHandle): Promise<ApiEndpoint[] | null> => {
+  try {
+    const parsedDir = await ws.getDirectoryHandle("parsed_api");
+    const endpoints: ApiEndpoint[] = [];
+    // @ts-ignore
+    for await (const [key, value] of parsedDir.entries()) {
+      if (value.kind === "file" && key.endsWith(".json")) {
+        const file = await value.getFile();
+        const text = await file.text();
+        const eps = JSON.parse(text);
+        if (Array.isArray(eps)) endpoints.push(...eps);
+      }
+    }
+    return endpoints.length > 0 ? endpoints : null;
+  } catch (e) {
+    return null;
   }
 };
 
