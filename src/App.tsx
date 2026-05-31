@@ -82,6 +82,30 @@ export default function App() {
 
   const [setupSwaggerUrl, setSetupSwaggerUrl] = useState("https://qianpulsa-coreapi-v1.onrender.com/docs/json");
 
+  // PWA Install Prompt
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+    }
+    setDeferredPrompt(null);
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -132,6 +156,42 @@ export default function App() {
     }
   };
 
+  const bypassWorkspace = async () => {
+   setIsUsingFallback(true);
+   const storedConfigs = localStorage.getItem("qianpulsa_configs");
+   if (storedConfigs) {
+       try { setRoleConfigs(JSON.parse(storedConfigs)); } catch (e) {}
+   } else {
+       const initialConfigs: Record<string, RoleConfig> = {};
+       ROLES.forEach((role) => { initialConfigs[role] = createDefaultRoleConfig(role); });
+       setRoleConfigs(initialConfigs);
+   }
+
+   const storedSUrl = localStorage.getItem("qianpulsa_swagger_url");
+   if (storedSUrl) {
+       setSetupSwaggerUrl(storedSUrl);
+   }
+
+   // Skip setup_swagger if we already have endpoints in localStorage
+   const localApis = localStorage.getItem("qianpulsa_apis");
+   if (localApis) {
+       try {
+           const parsed = JSON.parse(localApis);
+           if (parsed && parsed.length > 0) {
+               setEndpoints(parsed);
+               const firstRoleEp = parsed.find((ep: ApiEndpoint) => getRoleFromPath(ep.path) === "admin") || parsed[0];
+               setSelectedEndpoint(firstRoleEp);
+               setInitMode("ready");
+               return;
+           }
+       } catch (e) {}
+   }
+   
+   setInitMode("setup_swagger");
+   const urlToUse = storedSUrl || "https://qianpulsa-coreapi-v1.onrender.com/docs/json";
+   await loadSwaggerData(urlToUse, null, true);
+  };
+
   const loadWorkspaceData = async (handle: FileSystemDirectoryHandle) => {
     setInitMode("loading");
     
@@ -175,17 +235,25 @@ export default function App() {
     await loadSwaggerData(configSwaggerUrl, handle);
   };
 
-  const loadSwaggerData = async (swaggerUrl: string, handle: FileSystemDirectoryHandle, forceReload = false) => {
+  const loadSwaggerData = async (swaggerUrl: string, handle: FileSystemDirectoryHandle | null, forceReload = false) => {
       setIsLoadingSpec(true);
       setSpecError(null);
       
       if (!forceReload) {
-          const cachedApis = await import("./lib/WorkspaceIO").then(m => m.readParsedApis(handle));
+          let cachedApis = null;
+          if (handle) {
+              cachedApis = await import("./lib/WorkspaceIO").then(m => m.readParsedApis(handle)).catch(() => null);
+          } else {
+              const localApis = localStorage.getItem("qianpulsa_apis");
+              if (localApis) {
+                  try { cachedApis = JSON.parse(localApis); } catch(e) {}
+              }
+          }
           if (cachedApis && cachedApis.length > 0) {
               setEndpoints(cachedApis);
               setIsUsingFallback(false);
               const firstRoleEp =
-                cachedApis.find((ep) => getRoleFromPath(ep.path) === "admin") ||
+                cachedApis.find((ep: ApiEndpoint) => getRoleFromPath(ep.path) === "admin") ||
                 cachedApis[0];
               setSelectedEndpoint(firstRoleEp);
               setIsLoadingSpec(false);
@@ -195,30 +263,49 @@ export default function App() {
       }
 
       try {
-        const directResp = await fetch(swaggerUrl);
-        if (!directResp.ok) throw new Error("Status " + directResp.status);
-        const data = await directResp.json();
+        let data = null;
+        let pUrl = swaggerUrl;
+        
+        // Timeout handling for fetch
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        
+        try {
+          const directResp = await fetch(pUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!directResp.ok) throw new Error("Status " + directResp.status);
+          data = await directResp.json();
+        } catch (fetchErr) {
+          clearTimeout(timeoutId);
+          console.warn("Fetch directly from URL failed, attempting local fallback", fetchErr);
+          // Fallback to local embedded swagger.json
+          const localResp = await fetch("/swagger.json");
+          if (!localResp.ok) throw new Error("Local fallback not available");
+          data = await localResp.json();
+        }
         
         const parsedEp = parseOpenApi(data);
         if (parsedEp.length === 0) {
           throw new Error("Parsed zero endpoints from JSON.");
         }
         
-        await import("./lib/WorkspaceIO").then(m => m.writeParsedApis(handle, parsedEp));
+        if (handle) {
+            await import("./lib/WorkspaceIO").then(m => m.writeParsedApis(handle, parsedEp)).catch(() => {});
+        } else {
+            localStorage.setItem("qianpulsa_apis", JSON.stringify(parsedEp));
+        }
         
         setEndpoints(parsedEp);
         setIsUsingFallback(false);
         const firstRoleEp =
-          parsedEp.find((ep) => getRoleFromPath(ep.path) === "admin") ||
+          parsedEp.find((ep: ApiEndpoint) => getRoleFromPath(ep.path) === "admin") ||
           parsedEp[0];
         setSelectedEndpoint(firstRoleEp);
         setInitMode("ready");
       } catch (err: any) {
         console.error(err);
-        setSpecError("Gagal memuat URL Swagger. " + err.message);
-        if (initMode === "setup_swagger") {
-            // keep it in setup mode
-        } else {
+        setSpecError("Gagal memuat API Spec. Coba periksa koneksi. " + err.message);
+        if (initMode !== "setup_swagger") {
             setInitMode("setup_swagger"); // fallback to let them change it
         }
       } finally {
@@ -560,70 +647,85 @@ export default function App() {
   if (initMode !== "ready") {
     return (
       <div className="min-h-screen bg-brand-bg text-slate-300 flex flex-col font-sans">
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
           {initMode === "setup" && (
-            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-2xl p-8 shadow-2xl">
-              <FolderOpen className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
-              <h1 className="text-2xl font-bold text-white mb-2">QianPulsa Tester</h1>
-              <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-xl p-6 shadow-xl">
+              <FolderOpen className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
+              <h1 className="text-xl font-bold text-white mb-2">QianPulsa Tester</h1>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
                 Hubungkan folder lokal perangkat Anda untuk mulai menyimpan data log konfigurasi secara permanen dan aman.
               </p>
               <button
                 onClick={connectNewWorkspace}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-indigo-600/20"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-4 rounded-lg transition shadow-lg shadow-indigo-600/20 mb-3"
               >
                 Pilih Folder Workspace
+              </button>
+              <button
+                onClick={bypassWorkspace}
+                className="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold py-2 px-4 rounded-lg transition text-xs"
+              >
+                Gunakan Mode Memory / Cache (Tanpa Folder)
               </button>
             </div>
           )}
           {initMode === "resume" && (
-            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-2xl p-8 shadow-2xl">
-              <FolderOpen className="w-16 h-16 text-indigo-500 mx-auto mb-6" />
-              <h1 className="text-2xl font-bold text-white mb-2">Selamat Datang Kembali</h1>
-              <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-xl p-6 shadow-xl">
+              <FolderOpen className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
+              <h1 className="text-xl font-bold text-white mb-2">Selamat Datang Kembali</h1>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
                 Aplikasi mengingat workspace terakhir. Klik untuk mengaktifkan kembali akses.
               </p>
               <button
                 onClick={resumeWorkspace}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-indigo-600/20 mb-4"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-4 rounded-lg transition shadow-lg shadow-indigo-600/20 mb-3"
               >
                 Aktifkan Workspace
               </button>
-              <button
-                onClick={connectNewWorkspace}
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
-              >
-                Gunakan Folder Lain
-              </button>
+              <div className="flex items-center justify-between mt-2">
+                <button
+                  onClick={connectNewWorkspace}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
+                >
+                  Ganti Folder
+                </button>
+                <button
+                  onClick={bypassWorkspace}
+                  className="text-xs text-slate-400 hover:text-slate-300 transition"
+                >
+                  Gunakan Cache Memory
+                </button>
+              </div>
             </div>
           )}
           {initMode === "loading" && (
-            <div className="flex flex-col items-center justify-center p-12">
-              <RefreshCw className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+            <div className="flex flex-col items-center justify-center p-8">
+              <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mb-3" />
               <p className="text-sm font-semibold text-slate-300 animate-pulse">Memproses...</p>
             </div>
           )}
           {initMode === "setup_swagger" && (
-            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-2xl p-8 shadow-2xl text-left">
-              <h1 className="text-xl font-bold text-white mb-2">Konfigurasi API</h1>
-              <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+            <div className="max-w-md w-full bg-brand-sidebar border border-slate-900 rounded-xl p-6 shadow-xl text-left">
+              <h1 className="text-lg font-bold text-white mb-2">Konfigurasi API</h1>
+              <p className="text-xs text-slate-400 mb-5 leading-relaxed">
                 Tentukan endpoint Swagger (format JSON) untuk memuat skema API ke dalam workspace Anda.
               </p>
               
-              <div className="mb-6">
-                <label className="block text-xs font-semibold text-slate-400 mb-2">Swagger JSON URL</label>
+              <div className="mb-5">
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1.5">Swagger JSON URL</label>
                 <input
                     type="url"
                     value={setupSwaggerUrl}
                     onChange={e => setSetupSwaggerUrl(e.target.value)}
-                    className="w-full bg-brand-input border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full bg-brand-input border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     placeholder="https://example.onrender.com/docs/json"
                 />
               </div>
 
               {specError && (
-                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded">
-                  {specError}
+                <div className="mb-4 p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[11px] rounded flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>{specError}</span>
                 </div>
               )}
 
@@ -641,7 +743,7 @@ export default function App() {
                    await loadSwaggerData(setupSwaggerUrl, workspace, true);
                 }}
                 disabled={!setupSwaggerUrl || isLoadingSpec}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-4 rounded-lg transition shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
               >
                 {isLoadingSpec && <RefreshCw className="w-4 h-4 animate-spin" />}
                 Tarik Schema & Lanjutkan
@@ -664,55 +766,66 @@ export default function App() {
       <div className="absolute top-0 left-0 w-full h-[300px] bg-gradient-to-b from-indigo-900/10 via-brand-bg/2 to-transparent -z-10 pointer-events-none"></div>
 
       {/* Primary Top Header Navigation */}
-      <header className="border-b border-slate-800 bg-brand-header/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4">
+      <header className="border-b border-slate-800 bg-brand-header/80 backdrop-blur-md sticky top-0 z-40 px-4 py-3">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {/* Sidebar toggle button for small screens */}
             <button
               id="btn-toggle-sidebar"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="lg:hidden p-2 bg-brand-sidebar hover:bg-indigo-600 hover:text-white border border-slate-800 rounded-xl text-slate-300 transition shrink-0 cursor-pointer flex items-center justify-center"
+              className="lg:hidden p-2 bg-brand-sidebar hover:bg-indigo-600 hover:text-white border border-slate-800 rounded-lg text-slate-300 transition shrink-0 cursor-pointer flex items-center justify-center"
               title="Lihat Daftar API & Metrik"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div className="bg-indigo-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/10 flex items-center justify-center">
-              <Terminal className="w-5 h-5 text-indigo-100" />
+            <div className="bg-indigo-600 p-2 rounded-lg shadow-lg shadow-indigo-500/10 flex items-center justify-center">
+              <Terminal className="w-4 h-4 text-indigo-100" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
                 QianSim <span className="text-indigo-400">v1</span>
                 <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 text-[9px] font-sans rounded-full uppercase font-medium tracking-wider">
                   API Simulator
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 flex items-center gap-1">
-                Testing real-time terintegrasi • Panel Admin & Seller Panel
+              <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                Testing real-time terintegrasi
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
             {isUsingFallback && (
-              <span className="bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2.5 py-1 text-[11px] rounded-lg flex items-center gap-1.5 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" />
-                Mode Offline fallback Aktif
+              <span className="bg-amber-500/10 text-amber-400 border border-amber-500/25 px-2.5 py-1 text-[10px] rounded flex items-center gap-1.5 font-medium">
+                <AlertCircle className="w-3 h-3" />
+                Offline
               </span>
             )}
 
             {!isUsingFallback && endpoints.length > 0 && (
-              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 text-[11px] rounded-lg flex items-center gap-1.5 font-medium">
-                <CheckCircle className="w-3.5 h-3.5" />
-                Dihubungkan ke Core Server
+              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 px-2.5 py-1 text-[10px] rounded flex items-center gap-1.5 font-medium">
+                <CheckCircle className="w-3 h-3" />
+                Online
               </span>
+            )}
+
+            {isInstallable && (
+              <button
+                onClick={handleInstallClick}
+                className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white border border-indigo-500 rounded text-xs transition shrink-0 cursor-pointer shadow flex items-center gap-1.5"
+                title="Install Aplikasi ke Perangkat"
+              >
+                <Smartphone className="w-3.5 h-3.5" />
+                <span>Install</span>
+              </button>
             )}
 
             <button
               id="btn-reload-spec"
               onClick={fetchApiSpecification}
               disabled={isLoadingSpec}
-              className="p-2 bg-brand-sidebar hover:bg-brand-header border border-slate-800 rounded-lg text-slate-300 transition shrink-0 cursor-pointer disabled:opacity-50"
+              className="p-1.5 bg-brand-sidebar hover:bg-brand-header border border-slate-800 rounded text-slate-300 transition shrink-0 cursor-pointer disabled:opacity-50"
               title="Muat Ulang Swagger Spec"
             >
               <RefreshCw
@@ -732,12 +845,12 @@ export default function App() {
       </header>
 
       {/* Main Workspace Layout Wrapper */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6">
         {isLoadingSpec && endpoints.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 text-slate-500">
+          <div className="flex flex-col items-center justify-center py-16 text-slate-500">
             <div className="relative mb-4">
-              <div className="w-12 h-12 rounded-full border border-indigo-500/20 animate-ping absolute -inset-0.5"></div>
-              <div className="w-12 h-12 rounded-full border-t-2 border-indigo-500 animate-spin"></div>
+              <div className="w-10 h-10 rounded-full border border-indigo-500/20 animate-ping absolute -inset-0.5"></div>
+              <div className="w-10 h-10 rounded-full border-t-2 border-indigo-500 animate-spin"></div>
             </div>
             <h3 className="text-sm font-semibold text-slate-300">
               Menghubungkan ke Core API Dokumentasi...
@@ -749,7 +862,7 @@ export default function App() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start relative">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start relative">
             {/* Left Column: Responsive Sticky Drawer Navigation */}
             {isSidebarOpen && (
               <div
@@ -865,9 +978,9 @@ export default function App() {
 
               {/* Tab views conditional components */}
               {workspaceTab === "metrics" && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Metrik Sistem Segment */}
-                  <div className="bg-brand-sidebar border border-slate-800 rounded-xl p-6 shadow-xl">
+                  <div className="bg-brand-sidebar border border-slate-800 rounded-xl p-5 shadow-xl">
                     <div className="flex gap-2 items-center mb-4 text-sm">
                       <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
                       <span className="text-slate-200 font-semibold uppercase tracking-wider">
@@ -985,7 +1098,7 @@ export default function App() {
                       </div>
                     </>
                   ) : (
-                    <div className="min-h-[350px] flex flex-col items-center justify-center text-center p-8 bg-brand-sidebar border border-slate-900 rounded-xl">
+                    <div className="min-h-[300px] flex flex-col items-center justify-center text-center p-6 bg-brand-sidebar border border-slate-900 rounded-xl">
                       <HelpCircle className="w-10 h-10 text-slate-650 mb-2 animate-pulse" />
                       <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                         Harap Pilih Rute API
@@ -1000,7 +1113,7 @@ export default function App() {
               )}
 
               {workspaceTab === "config" && (
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="p-4 bg-brand-sidebar border border-slate-900 rounded-xl">
                     <h3 className="text-sm font-semibold text-white mb-2">
                       Pilih Role Autentikasi

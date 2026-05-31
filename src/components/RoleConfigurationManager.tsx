@@ -69,19 +69,43 @@ export default function RoleConfigurationManager({
         payload.otpCode = otpCode;
       }
 
-      const fetchOptions = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          url,
+      let data;
+      const isStaticOrWebView =
+        window.location.protocol === "file:" ||
+        window.location.hostname.includes("github.io") ||
+        window.location.hostname.includes("vercel.app") ||
+        window.location.hostname.includes("github") ||
+        window.location.hostname.includes("run.app");
+
+      if (isStaticOrWebView) {
+        // Direct request
+        const resp = await fetch(url, {
           method: "POST",
           headers: { ...config.headers, "Content-Type": "application/json" },
-          body: payload
-        })
-      };
-
-      const resp = await fetch("/api/proxy-request", fetchOptions);
-      const data = await resp.json();
+          body: JSON.stringify(payload)
+        });
+        const text = await resp.text();
+        let bodyParsed;
+        try { bodyParsed = JSON.parse(text); } catch { bodyParsed = text; }
+        data = {
+          status: resp.status,
+          statusText: resp.statusText,
+          body: bodyParsed
+        };
+      } else {
+        const fetchOptions = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            method: "POST",
+            headers: { ...config.headers, "Content-Type": "application/json" },
+            body: payload
+          })
+        };
+        const resp = await fetch("/api/proxy-request", fetchOptions);
+        data = await resp.json();
+      }
       
       if (data.status >= 200 && data.status < 300) {
         let token = "";
@@ -123,8 +147,8 @@ export default function RoleConfigurationManager({
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="bg-brand-sidebar border border-slate-900 rounded-xl p-4 sm:p-6 shadow-xl w-full">
+    <div className="flex flex-col gap-4">
+      <div className="bg-brand-sidebar border border-slate-900 rounded-xl p-4 shadow-xl w-full">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
@@ -243,7 +267,7 @@ export default function RoleConfigurationManager({
       </div>
 
       {!["public", "webhook"].includes(currentRole) && (
-        <div className="bg-brand-sidebar border border-slate-900 rounded-xl p-4 sm:p-6 shadow-xl w-full">
+        <div className="bg-brand-sidebar border border-slate-900 rounded-xl p-4 shadow-xl w-full">
            <div className="flex items-center gap-3 mb-5">
               <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
                 <LogIn className="w-5 h-5" />

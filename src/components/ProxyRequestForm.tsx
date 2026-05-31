@@ -224,7 +224,7 @@ export default function ProxyRequestForm({
   const hasBody = ["POST", "PUT", "PATCH", "DELETE"].includes(endpoint.method);
 
   return (
-    <form onSubmit={handleSubmit} className="bg-brand-sidebar border border-slate-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-6">
+    <form onSubmit={handleSubmit} className="bg-brand-sidebar border border-slate-800 rounded-xl p-4 sm:p-5 shadow-xl space-y-5">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2">

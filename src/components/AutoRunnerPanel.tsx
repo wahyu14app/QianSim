@@ -38,20 +38,16 @@ export default function AutoRunnerPanel({
   onStartBulkRun,
   onSaveResponse
 }: AutoRunnerPanelProps) {
-  // Memoize non-auth and non-webhook endpoints to keep the auto runner board clean
+  // Memoize non-webhook endpoints to keep the auto runner board clean
   const activeEndpoints = React.useMemo(() => {
     return endpoints.filter((ep) => {
       const p = ep.path.toLowerCase();
-      return !p.includes("/auth/") && 
-             !p.includes("/login") && 
-             !p.includes("/register") && 
-             !p.includes("/otp") &&
-             !p.includes("webhook");
+      return !p.includes("webhook");
     });
   }, [endpoints]);
 
   // Config state
-  const [filterMode, setFilterMode] = useState<"all" | "custom_only">("custom_only");
+  const [filterMode, setFilterMode] = useState<"all" | "custom_only">("all");
   const [delayMs, setDelayMs] = useState<number>(300); // delay between requests to avoid rate limits
   
   // Runner states
